@@ -1,0 +1,8 @@
+(include_subdirs unqualified)
+
+(library
+ (name LibIris))
+
+(env
+  (dev
+    (flags (:standard -w -32 -w -33))))

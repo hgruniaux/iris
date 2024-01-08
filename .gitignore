@@ -1,0 +1,8 @@
+.vscode/
+
+_build/
+tmp/
+*.out
+*.s
+*.v
+*.c

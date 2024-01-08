@@ -1,0 +1,9 @@
+(executable
+ (name violet)
+ (libraries LibIris))
+
+(ocamllex
+ (modules Lexer))
+
+(menhir
+ (modules Parser))
