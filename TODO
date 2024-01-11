@@ -1,0 +1,1 @@
+- Allow immediates for shift operations (shl eax, 2 for example)

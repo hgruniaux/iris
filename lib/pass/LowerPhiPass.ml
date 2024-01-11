@@ -45,7 +45,7 @@ let pass_fn fn =
               let pred = Label.Map.find label fn.fn_blocks in
               let mov_kind =
                 match operand with
-                | Iop_imm i -> Iinst_cst i
+                | Iop_imm i -> Iinst_cst (Ir.get_int_constant fn.fn_ctx i)
                 | Iop_reg r -> Iinst_mov r
               in
               (* It is important that the move instruction has the same name

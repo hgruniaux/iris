@@ -1,78 +1,22 @@
 open Ir
 
 type calling_convention_info = {
-  cc_caller_saved : Reg.set;
-  cc_callee_saved : Reg.set;
+  cc_caller_saved : Reg.set;  (** The caller-saved (volatile) registers. *)
+  cc_callee_saved : Reg.set;  (** The callee-saved (non-volatile) registers. *)
   cc_args_regs : Reg.t list;
+      (** A list of physical registers used to pass arguments, in order. *)
   cc_args_regs_count : int;
+      (** Count of arguments that are passed by physical registers.
+          Must be the length of [cc_args_regs]. *)
+  cc_args_stack_ltr : bool;
+      (** True if the arguments in the stack are passed from left to right; false otherwise. *)
   cc_return_reg : Reg.t option;
+      (** The physical register where the function's return value must be stored.
+      None if the return value is stored in the stack. *)
+  cc_caller_cleanup : bool;
+      (** True if the caller has to clean the stack (pop arguments passed in the stack if any),
+          false if it is the callee. *)
 }
-
-let get_reg op =
-  match op with Iop_reg r -> r | _ -> failwith "not a register operand"
-
-(** Returns the first [k] elements of [xs] and the remaining elements.
-    If [xs] is too small, then [xs] is returned. *)
-let rec firstk k xs =
-  match xs with
-  | [] -> ([], [])
-  | x :: xs ->
-      if k = 0 then ([], x :: xs)
-      else if k = 1 then ([ x ], xs)
-      else
-        let f, r = firstk (k - 1) xs in
-        (x :: f, r)
-
-(** Same as List.map2 but stop when l1 is empty (therefore both lists may
-    have a different length). *)
-let rec map2 f l1 l2 =
-  match (l1, l2) with
-  | [], _ -> []
-  | _, [] -> failwith "not enough elements in l2"
-  | x1 :: r1, x2 :: r2 -> f x1 x2 :: map2 f r1 r2
-
-(** Generates a sequence of mov and pop instructions (created using [mk_mov] and [mk_pop])
-    that retrieve the concrete arguments of the given [ir_fn] (according to [cc_info])
-    and stores them in the IR arguments pseudo registers. Notably, this function
-    explicify the calling convention. *)
-let generate_callee_args cc_info ir_fn mk_mov mk_pop =
-  let args_in_regs, args_in_stack =
-    firstk cc_info.cc_args_regs_count ir_fn.Ir.fn_params
-  in
-
-  (* Moves the arguments lying in registers to their IR pseudo register. *)
-  let mov_insts =
-    map2 (fun arg reg -> mk_mov arg reg) args_in_regs cc_info.cc_args_regs
-  in
-
-  (* Pop from stack the remaining arguments, from right to left. *)
-  let mov_and_pop_insts =
-    List.fold_right
-      (fun reg insts -> mk_pop reg @ insts)
-      args_in_stack mov_insts
-  in
-
-  mov_and_pop_insts
-
-let generate_caller_args cc_info args mk_mov mk_push =
-  let args_in_regs, args_in_stack = firstk cc_info.cc_args_regs_count args in
-
-  let mov_insts =
-    map2
-      (fun arg reg ->
-        let mov_inst = mk_mov reg (get_reg arg) in
-        mov_inst)
-      args_in_regs cc_info.cc_args_regs
-  in
-
-  (* Push the remaining arguments to stack, from right to left. *)
-  let mov_and_push_insts =
-    List.fold_right
-      (fun reg insts -> mk_push (get_reg reg) :: insts)
-      args_in_stack mov_insts
-  in
-
-  mov_and_push_insts
 
 let instsel_bb bb instsel_inst =
   let mir_insts =

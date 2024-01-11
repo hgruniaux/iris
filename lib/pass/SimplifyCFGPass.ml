@@ -1,6 +1,7 @@
 open Ir
 
-(** Checks if [bb] is unreachable. A basic block is considered unreachable if:
+(** Checks if [bb] is unreachable.
+    A basic block is considered unreachable if:
       - it has no predecessors (except the entry block)
       - it has only itself as predecessor *)
 let is_unreachable bb =

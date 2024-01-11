@@ -1,7 +1,0 @@
-(executable
- (name main)
- (libraries LibIris))
-
-(env
-  (dev
-    (flags (:standard -w -32 -w -33))))

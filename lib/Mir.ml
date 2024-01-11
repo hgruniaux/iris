@@ -13,18 +13,21 @@
  * This representation is generally generated from the IR by the backend's
  * specific instruction-sel pass (instsel). *)
 
-open IrPrettyPrinter
+open IrPP
 module Reg = Ir.Reg
 module Label = Ir.Label
+module Constant = Ir.Constant
 
 type reg = Ir.reg
 type label = Label.t
 type imm = nativeint
+type constant = Constant.t
 
 type operand =
   | Oreg of reg (* a register *)
   | Oframe of int (* a frame index (for register spilling for example) *)
   | Oimm of imm (* an immediate *)
+  | Oconst of constant (* a constant label *)
   | Olabel of label (* a basic block label (for jump instructions) *)
   | Ofunc of Ir.fn (* a function (for call instructions) *)
 
@@ -79,6 +82,14 @@ let mk_mov target source =
     [ Oreg target; Oreg source ]
     ~defs:[ target ] ~uses:[ source ]
 
+let mk_push source =
+  let uses = match source with Oreg r -> [ r ] | _ -> [] in
+  mk_inst "push" [ source ] ~defs:[] ~uses
+
+let mk_pop target =
+  let defs = match target with Oreg r -> [ r ] | _ -> [] in
+  mk_inst "pop" [ target ] ~defs ~uses:[]
+
 let stack_load_kind = "__load_stack"
 let stack_store_kind = "__store_stack"
 
@@ -93,7 +104,7 @@ let mk_stack_load output_reg stack_idx =
 
 let mk_stack_store stack_idx input_reg =
   {
-    i_kind = "move";
+    i_kind = "mov";
     i_defs = Reg.Set.empty;
     i_uses = Reg.Set.singleton input_reg;
     i_operands = [ Oframe stack_idx; Oreg input_reg ];
@@ -127,6 +138,7 @@ let pp_operand ppf op =
   | Oreg r -> pp_register ppf r
   | Oframe n -> Format.fprintf ppf "STACK[%d]" n
   | Oimm i -> Format.fprintf ppf "%s" (Nativeint.to_string i)
+  | Oconst c -> Format.fprintf ppf "%a" pp_constant c
   | Olabel l -> Format.fprintf ppf "%a" pp_label l
   | Ofunc fn -> Format.fprintf ppf "%s" fn.fn_name
 

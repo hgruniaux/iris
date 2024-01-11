@@ -122,7 +122,7 @@ let compute fn =
   liveinfo
 
 let dump_liveinfo fn liveinfo =
-  let pp_registerset = IrPrettyPrinter.pp_registerset in
+  let pp_registerset = IrPP.pp_registerset in
   let cur_bb_liveinfo = ref None in
   let pp_inst_extra ppf inst =
     let inst_liveinfo =

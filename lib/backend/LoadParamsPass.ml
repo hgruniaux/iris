@@ -41,17 +41,19 @@ let pass_fn arch fn =
      0 for the saved EBP. *)
   (* FIXME: more portable, the constant -2 is specific to x86 *)
   let cur_frame_idx = ref (-2) in
-  let insts =
+  let load_insts =
     List.fold_right
       (fun reg insts ->
         let result = Mir.mk_stack_load reg !cur_frame_idx :: insts in
         decr cur_frame_idx;
         result)
-      args_in_stack mov_insts
+      args_in_stack []
   in
 
-  (* TODO: support arguments in stack, left to right (instead of right to left). *)
+  (* Reverse push instructions if arguments are expected left to right. *)
+  let load_insts =
+    if cc_info.cc_args_stack_ltr then List.rev load_insts else load_insts
+  in
 
   (* Insert the code at start of the function. *)
-  let entry_bb = Label.Map.find fn.fn_entry fn.fn_blocks in
-  entry_bb.bb_insts <- insts @ entry_bb.bb_insts
+  MirPassUtils.insert_prolog fn (mov_insts @ load_insts)

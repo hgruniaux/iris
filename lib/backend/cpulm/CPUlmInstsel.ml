@@ -9,16 +9,24 @@ let operand_as_reg mir_insts op =
       | 1n -> CPUlmRegs.r1
       | _ ->
           let r = Reg.fresh () in
-          mir_insts := mk_loadi r i @ !mir_insts;
+          mir_insts := mk_loadi r i :: !mir_insts;
           r)
   | Iop_reg r -> r
+
+let from_ir_operand op =
+  match op with Iop_imm i -> Mir.Oimm i | Iop_reg r -> Mir.Oreg r
 
 let instsel_inst inst =
   let r1 = inst.i_name in
   match inst.i_kind with
-  | Iinst_cst 0n -> [ mk_mov r1 CPUlmRegs.r0 ]
-  | Iinst_cst 1n -> [ mk_mov r1 CPUlmRegs.r1 ]
-  | Iinst_cst imm -> mk_loadi r1 imm
+  (* TODO: support string constant *)
+  | Iinst_cst cst -> (
+      match Hashtbl.find_opt inst.i_bb.b_func.fn_ctx.ctx_constants cst with
+      | Some (Icst_int 0n) -> [ mk_mov r1 CPUlmRegs.r0 ]
+      | Some (Icst_int 1n) -> [ mk_mov r1 CPUlmRegs.r1 ]
+      | Some (Icst_int imm) -> [ mk_loadi r1 imm ]
+      | Some (Icst_string _) -> failwith "TODO: support string constants"
+      | None -> assert false)
   | Iinst_mov r2 -> [ mk_mov r1 r2 ]
   | Iinst_load r2 -> mk_load r1 r2
   | Iinst_store (r1, r2) ->
@@ -48,12 +56,9 @@ let instsel_inst inst =
       let r2 = operand_as_reg mir_insts r2 in
       !mir_insts
       @ match op with Iunop_neg -> mk_neg r1 r2 | Iunop_not -> mk_not r1 r2)
+  (* TODO: implement cmp instruction *)
   | Iinst_call (fname, args) ->
-      let args_insts =
-        InstselCommon.generate_caller_args cc_info args CPUlmMir.mk_mov
-          CPUlmMir.mk_push
-      in
-      args_insts @ mk_call cc_info fname @ [ mk_mov r1 CPUlmRegs.return_reg ]
+      mk_call cc_info r1 fname (List.map from_ir_operand args)
   | Iinst_ret -> mk_ret cc_info
   | Iinst_retv r ->
       let mir_insts = ref [] in
@@ -64,7 +69,5 @@ let instsel_inst inst =
       !mir_insts @ mk_jmpc (operand_as_reg mir_insts r) tl el
   | _ -> failwith "unsupported operation on CPUlm"
 
-let instsel_bb bb =
-  InstselCommon.instsel_bb bb instsel_inst
-
+let instsel_bb bb = InstselCommon.instsel_bb bb instsel_inst
 let instsel_fn fn = InstselCommon.instsel_fn fn instsel_bb

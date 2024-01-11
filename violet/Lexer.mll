@@ -3,11 +3,18 @@ open Parser
 
 exception Lexing_error of string
 
+let string_buffer = Buffer.create 1024
+
 let resolve_keyword =
   let keywords = Hashtbl.create 17 in
   List.iter (fun (s, l) -> Hashtbl.add keywords s l)
         (
         [
+          ("true", TRUE);
+          ("false", FALSE);
+          ("new", NEW);
+          ("delete", DELETE);
+          ("print", PRINT);
           ("fn", FN);
           ("let", LET);
           ("return", RETURN);
@@ -49,12 +56,41 @@ rule next_token = parse
   | '*' { STAR }
   | '/' { SLASH }
   | '%' { PERCENT }
+  | '&' { AMP }
+  | "&&" { AMP_AMP }
+  | '^' { CARET }
+  | '|' { PIPE }
+  | "||" { PIPE_PIPE }
+  | '<' { LESS }
+  | "<=" { LESS_EQ }
+  | '>' { GREATER }
+  | ">=" { GREATER_EQ }
+  | "=" { EQ }
+  | "==" { EQ_EQ }
+  | "!=" { EXCLAIM_EQ }
+  | "<<" { LESS_LESS }
+  | ">>" { GREATER_GREATER }
   | '(' { LPAR }
   | ')' { RPAR}
   | '{' { LBRACKET }
   | '}' { RBRACKET }
   | integer as i { INTEGER (Nativeint.of_string i) }
   | identifier as i { resolve_keyword i }
+
+  | '"'
+    {
+      (* Calling (string lexbuf) overwrites the start position saved in lexbuf.
+         Sadly, string is called many times when lexing a string literal.
+         Therefore, the start position of the token is incorrect by default.
+         To avoid this, we save manually the start position of the constant
+         and then restore it after lexing it. *)
+      let start_pos = lexbuf.lex_start_pos in
+      let start_p = lexbuf.lex_start_p in
+      let lexed_str = string lexbuf in
+      lexbuf.lex_start_pos <- start_pos;
+      lexbuf.lex_start_p <- start_p;
+      STRING (lexed_str)
+    }
 
   | ['\x20'-'\x7E'] as c
     {
@@ -78,3 +114,31 @@ and block_comment = parse
   | eof { raise (Lexing_error "Unterminated block comment.") }
   | "*/" { next_token lexbuf }
   | _ { block_comment lexbuf }
+
+and string = parse
+  | eol | eof
+    { raise (Lexing_error ("Unterminated string.")) }
+
+  | '"'
+    { let s = Buffer.contents string_buffer in
+      Buffer.reset string_buffer;
+      s }
+
+  | "\\n"
+    { Buffer.add_char string_buffer '\n';
+      string lexbuf }
+
+  | "\\\\"
+    { Buffer.add_char string_buffer '\\';
+      string lexbuf }
+
+  | "\\\""
+    { Buffer.add_char string_buffer '"';
+      string lexbuf }
+
+  | '\\' _ as c
+    { raise (Lexing_error ("Invalid escape sequence '\\" ^ c ^ "' in string.")) }
+
+  | _ as c
+    { Buffer.add_char string_buffer c;
+      string lexbuf }

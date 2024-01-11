@@ -1,6 +1,8 @@
 type expr =
-  | Econst of nativeint
+  | Eint of nativeint
+  | Estring of string
   | Evar of string
+  | Enew of nativeint
   | Ecall of string * expr list
   | Ebinop of binop * expr * expr
   | Eunop of unop * expr
@@ -8,11 +10,14 @@ type expr =
 and stmt =
   | Sempty
   | Sexpr of expr
+  | Svardecl of string * expr
+  | Sprint of expr
   | Slabel of string * stmt
   | Sreturn of expr option
   | Sbreak
   | Scontinue
   | Sgoto of string
+  | Sdelete of expr
   | Sblock of stmt list
   | Sif of expr * stmt * stmt
   | Swhile of expr * stmt
@@ -24,6 +29,19 @@ and binop =
   | Bmul
   | Bdiv
   | Brem
+  | Band
+  | Bland
+  | Bor
+  | Blor
+  | Bxor
+  | Bshift_left
+  | Bshift_right
+  | Beq
+  | Bne
+  | Blt
+  | Ble
+  | Bgt
+  | Bge
 
 and unop =
   | Iunop_neg

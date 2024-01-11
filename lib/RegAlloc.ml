@@ -269,8 +269,8 @@ let dump_colors colors =
       if Reg.is_pseudo reg then
         match color with
         | Reg color ->
-            Format.printf "%a -> %a@." IrPrettyPrinter.pp_register reg
-              IrPrettyPrinter.pp_register color
+            Format.printf "%a -> %a@." IrPP.pp_register reg
+              IrPP.pp_register color
         | Spilled n ->
-            Format.printf "%a -> Spilled %d@." IrPrettyPrinter.pp_register reg n)
+            Format.printf "%a -> Spilled %d@." IrPP.pp_register reg n)
     colors

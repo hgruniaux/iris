@@ -73,15 +73,15 @@ let report (b, e) =
   eprintf "File \"%s\", line %d, characters %d-%d:\n" file l fc lc
 
 let compile_fn arch ir_fn =
-  if !dump_ir then IrPrettyPrinter.dump_ir ir_fn;
-  if !dump_ir_dot then IrPrettyPrinter.dump_dot ir_fn;
+  if !dump_ir then IrPP.dump_ir ir_fn;
+  if !dump_ir_dot then IrPP.dump_dot ir_fn;
 
   SimplifyCFGPass.pass_fn ir_fn;
   CopyPropagationPass.pass_fn ir_fn;
   DCEPass.pass_fn ir_fn;
 
-  if !dump_opt_ir then IrPrettyPrinter.dump_ir ir_fn;
-  if !dump_opt_ir_dot then IrPrettyPrinter.dump_dot ir_fn;
+  if !dump_opt_ir then IrPP.dump_ir ir_fn;
+  if !dump_opt_ir_dot then IrPP.dump_dot ir_fn;
 
   IsolateRetPass.pass_fn ir_fn;
   LowerPhiPass.pass_fn ir_fn;
@@ -89,6 +89,7 @@ let compile_fn arch ir_fn =
   let mir_fn = Backend.instsel_fn arch ir_fn in
 
   LoadParamsPass.pass_fn arch mir_fn;
+  LowerCallsPass.pass_fn arch mir_fn;
   PrologEpilogPass.pass_fn arch mir_fn;
 
   if !dump_mir then Mir.dump_mir [ mir_fn ];
@@ -114,12 +115,11 @@ let compile_fn arch ir_fn =
     let interf = Interference.make regs liveinfo in
     if !dump_interf then Interference.dump_interference interf;
 
-    if !dump_mir then Mir.dump_mir [ mir_fn ])
-  else (
-    RewriteVRegs.pass_fn colors mir_fn;
     if !dump_mir then Mir.dump_mir [ mir_fn ];
-
-    Format.printf "%a" (Backend.emit_fn arch) mir_fn)
+    mir_fn)
+  else (
+    RewriteVRegsPass.pass_fn colors mir_fn;
+    mir_fn)
 
 let () =
   let c = open_in file in
@@ -129,11 +129,11 @@ let () =
     close_in c;
     if !parse_only then exit 0;
 
-    let ir = List.map Compile.compile_func f in
-    List.iter
-      (fun funcdef ->
-        compile_fn !arch funcdef (* Format.printf "%a\n" Ir.pp_func funcdef *))
-      ir
+    let ctx = Ir.mk_ctx () in
+    let ib = IrBuilder.create ctx in
+    let ir_funcs = List.map (Compile.compile_func ib) f in
+    let compiled_funcs = List.map (fun fn -> compile_fn !arch fn) ir_funcs in
+    Backend.emit_ctx !arch Format.std_formatter ctx compiled_funcs
   with
   | Lexing_error msg ->
       let range_start = Lexing.lexeme_start_p lb in

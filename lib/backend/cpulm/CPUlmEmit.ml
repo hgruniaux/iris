@@ -18,13 +18,15 @@ let reg_name r =
   else if r = CPUlmRegs.rpriv then "rpriv"
   else Format.asprintf "r%d" r
 
-let emit_label = IrPrettyPrinter.pp_label
+let emit_label = IrPP.pp_label
+let emit_constant = IrPP.pp_constant
 
 let emit_operand ppf operand =
   match operand with
   | Oreg r -> Format.fprintf ppf "%s" (reg_name r)
   | Oframe n -> Format.fprintf ppf "STACK[%d]" n
   | Oimm i -> Format.fprintf ppf "%s" (Nativeint.to_string i)
+  | Oconst c -> emit_constant ppf c
   | Olabel l -> emit_label ppf l
   | Ofunc f -> Format.fprintf ppf "%s" f.fn_name
 

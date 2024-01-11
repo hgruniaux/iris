@@ -37,3 +37,9 @@ let emit_fn arch =
   | Arch_x86 -> X86Emit.emit_fn ~is_x64:false
   | Arch_x64 -> X86Emit.emit_fn ~is_x64:true
   | Arch_cpulm -> CPUlmEmit.emit_fn
+
+let emit_ctx arch =
+  match arch with
+  | Arch_x86 -> X86Emit.emit_ctx ~is_x64:false
+  | Arch_x64 -> X86Emit.emit_ctx ~is_x64:true
+  | Arch_cpulm -> failwith "TODO: emit_ctx CPUlm"

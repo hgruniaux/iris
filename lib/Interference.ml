@@ -126,10 +126,10 @@ let dump_interference graph =
     if not (Hashtbl.mem vertices vertex) then (
       if Reg.is_physical vertex then
         Format.fprintf ppf "_%d [label=\"%a\";shape=rect];\n" vertex
-          IrPrettyPrinter.pp_register vertex
+          IrPP.pp_register vertex
       else
         Format.fprintf ppf "_%d [label=\"%a\";shape=circle];\n" vertex
-          IrPrettyPrinter.pp_register vertex;
+          IrPP.pp_register vertex;
       Hashtbl.add vertices vertex true)
   in
 

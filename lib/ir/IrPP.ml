@@ -39,10 +39,12 @@ let pp_labelset ppf s =
   let l = Label.Set.elements s in
   pp_list pp_label ppf l
 
-let pp_type ppf = function
+let rec pp_type ppf = function
   | Ityp_void -> Format.fprintf ppf "void"
   | Ityp_int -> Format.fprintf ppf "int"
   | Ityp_ptr -> Format.fprintf ppf "ptr"
+  | Ityp_func (ret, args) ->
+      Format.fprintf ppf "%a (%a)" pp_type ret (pp_list pp_type) args
 
 let pp_binop ppf = function
   | Ibinop_add -> Format.fprintf ppf "add"
@@ -75,6 +77,22 @@ let pp_cmp ppf = function
   | Icmp_sgt -> Format.fprintf ppf "sgt"
   | Icmp_sge -> Format.fprintf ppf "sge"
 
+let pp_constant_value ppf constant =
+  match constant with
+  | Icst_int n -> Format.fprintf ppf "%s" (Nativeint.to_string n)
+  | Icst_string str -> Format.fprintf ppf "\"%s\"" (String.escaped str)
+
+let pp_constant =
+  let constants = Hashtbl.create 17 in
+  let cpt = ref 0 in
+  fun ppf constant ->
+    match Hashtbl.find_opt constants constant with
+    | None ->
+        incr cpt;
+        Hashtbl.add constants constant !cpt;
+        Format.fprintf ppf "LC%d" !cpt
+    | Some i -> Format.fprintf ppf "LC%d" i
+
 let pp_operand ppf operand =
   match operand with
   | Iop_reg reg -> pp_register ppf reg
@@ -83,9 +101,11 @@ let pp_operand ppf operand =
 let pp_instruction ppf inst =
   let n = inst.i_name in
   match inst.i_kind with
-  | Iinst_cst cst ->
-      Format.fprintf ppf "%a = %s" pp_register n (Nativeint.to_string cst)
+  | Iinst_cst cst -> Format.fprintf ppf "%a = %a" pp_register n pp_constant cst
   | Iinst_mov r -> Format.fprintf ppf "%a = %a" pp_register n pp_register r
+  | Iinst_extract_value (cst, idx) ->
+      Format.fprintf ppf "%a = extractvalue %a %a" pp_register n pp_constant cst
+        pp_register idx
   | Iinst_load r ->
       Format.fprintf ppf "%a = load %a" pp_register n pp_register r
   | Iinst_store (r, op) ->
@@ -108,6 +128,7 @@ let pp_instruction ppf inst =
         (pp_list (fun ppf (op, label) ->
              Format.fprintf ppf "(%a, %a)" pp_operand op pp_label label))
         predecessors
+  | Iinst_unreachable -> Format.fprintf ppf "unreachable"
   | Iinst_ret -> Format.fprintf ppf "ret"
   | Iinst_retv op -> Format.fprintf ppf "ret %a" pp_operand op
   | Iinst_jmp bb -> Format.fprintf ppf "jmp %a" pp_label bb
@@ -123,13 +144,39 @@ let pp_bb ppf bb =
 
   Ir.iter_insts (fun inst -> Format.fprintf ppf "  %a@." pp_instruction inst) bb
 
-let pp_fn ppf funcdef =
-  Format.fprintf ppf "fn %s(%a) {@." funcdef.fn_name (pp_list pp_register)
-    funcdef.fn_params;
-  Label.Map.iter (fun _ b -> Format.fprintf ppf "%a" pp_bb b) funcdef.fn_blocks;
-  Format.fprintf ppf "}@."
+let rec pp_params ppf (regs, types) =
+  match (regs, types) with
+  | [], [] -> ()
+  | [ reg ], [ typ ] -> Format.fprintf ppf "%a %a" pp_type typ pp_register reg
+  | reg :: l, typ :: l' ->
+      Format.fprintf ppf "%a %a, %a" pp_type typ pp_register reg pp_params
+        (l, l')
+  | _ -> assert false
 
-let dump_ir funcdef = Format.printf "%a" pp_fn funcdef
+let pp_fn ppf fn =
+  if fn.fn_is_external then
+    Format.fprintf ppf "extern fn %s(%a) -> %a;@." fn.fn_name pp_params
+      (fn.fn_params, param_types_of fn)
+      pp_type (return_type_of fn)
+  else (
+    Format.fprintf ppf "fn %s(%a) -> %a {@." fn.fn_name pp_params
+      (fn.fn_params, param_types_of fn)
+      pp_type (return_type_of fn);
+    Label.Map.iter (fun _ b -> Format.fprintf ppf "%a" pp_bb b) fn.fn_blocks;
+    Format.fprintf ppf "}@.")
+
+let dump_ir fn =
+  let ppf = Format.std_formatter in
+  pp_fn ppf fn
+
+let dump_ctx ctx =
+  let ppf = Format.std_formatter in
+
+  Hashtbl.iter
+    (fun name cst_value ->
+      Format.fprintf ppf "%a = constant %a\n" pp_constant name pp_constant_value cst_value)
+    ctx.ctx_constants;
+  List.iter (pp_fn ppf) ctx.ctx_funcs
 
 let dump_dot funcdef =
   let pp_bb_in_dot ppf bb =

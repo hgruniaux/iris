@@ -6,7 +6,8 @@ let prolog fn =
     push ebp
     mov ebp, esp
   *)
-  ignore fn; (* FIXME: allocate space for local variables *)
+  ignore fn;
+  (* FIXME: allocate space for local variables *)
   [ X86Mir.mk_push X86Regs.ebp; X86Mir.mk_mov X86Regs.ebp X86Regs.esp ]
 
 let epilog fn =
@@ -22,47 +23,52 @@ let find_inst bb r = Hashtbl.find_opt bb.b_func.fn_symbol_table r
 let get_reg op =
   match op with Iop_reg r -> r | _ -> failwith "not a register operand"
 
+let from_ir_operand op =
+  match op with Iop_imm i -> Mir.Oimm i | Iop_reg r -> Mir.Oreg r
+
 let instsel_inst cc_info inst =
   let r1 = inst.i_name in
   match inst.i_kind with
-  | Iinst_cst imm -> [ mk_movi r1 imm ]
+  (* TODO: support string constant *)
+  | Iinst_cst cst -> (
+      match Hashtbl.find_opt inst.i_bb.b_func.fn_ctx.ctx_constants cst with
+      | Some (Icst_int imm) -> [ mk_movi r1 imm ]
+      | Some (_) -> [ mk_mov_constant r1 cst ]
+      | None -> assert false)
   | Iinst_mov r2 -> [ mk_mov r1 r2 ]
   | Iinst_load r2 -> mk_load r1 r2
   | Iinst_store (r1, r2) -> mk_store r1 (get_reg r2)
   | Iinst_binop (op, r2, r3) -> (
-      let r2 = get_reg r2 in
       match op with
       | Ibinop_add -> (
-          match r3 with
-          | Iop_imm i -> mk_addi r1 r2 i
-          | Iop_reg r3 -> mk_add r1 r2 r3)
+          match r3 with Iop_imm i -> mk_addi r1 r2 i | _ -> mk_add r1 r2 r3)
       | Ibinop_sub -> (
-          match r3 with
-          | Iop_imm i -> mk_subi r1 r2 i
-          | Iop_reg r3 -> mk_sub r1 r2 r3)
+          match r3 with Iop_imm i -> mk_subi r1 r2 i | _ -> mk_sub r1 r2 r3)
       | Ibinop_mul -> (
-          match r3 with
-          | Iop_imm i -> mk_imuli r1 r2 i
-          | Iop_reg r3 -> mk_imul r1 r2 r3)
-      | Ibinop_udiv -> mk_div r1 r2 (get_reg r3)
-      | Ibinop_sdiv -> mk_idiv r1 r2 (get_reg r3)
-      | Ibinop_urem -> mk_rem r1 r2 (get_reg r3)
-      | Ibinop_srem -> mk_irem r1 r2 (get_reg r3)
-      | Ibinop_and -> mk_and r1 r2 (get_reg r3)
-      | Ibinop_or -> mk_or r1 r2 (get_reg r3)
-      | Ibinop_xor -> mk_xor r1 r2 (get_reg r3)
-      | Ibinop_lsl -> mk_shl r1 r2 (get_reg r3)
-      | Ibinop_lsr -> mk_shr r1 r2 (get_reg r3)
-      | Ibinop_asr -> mk_sar r1 r2 (get_reg r3))
+          match r3 with Iop_imm i -> mk_imuli r1 r2 i | _ -> mk_imul r1 r2 r3)
+      | Ibinop_udiv -> mk_div r1 r2 r3
+      | Ibinop_sdiv -> mk_idiv r1 r2 r3
+      | Ibinop_urem -> mk_rem r1 r2 r3
+      | Ibinop_srem -> mk_irem r1 r2 r3
+      | Ibinop_and -> mk_and r1 r2 r3
+      | Ibinop_or -> mk_or r1 r2 r3
+      | Ibinop_xor -> mk_xor r1 r2 r3
+      | Ibinop_lsl -> mk_shl r1 r2 r3
+      | Ibinop_lsr -> mk_shr r1 r2 r3
+      | Ibinop_asr -> mk_sar r1 r2 r3)
   | Iinst_unop (op, r2) -> (
-      let r2 = get_reg r2 in
       match op with Iunop_neg -> mk_neg r1 r2 | Iunop_not -> mk_not r1 r2)
+  | Iinst_cmp (cmp, r2, r3) ->
+    (match cmp with
+    | Icmp_eq -> mk_cmp_util "e" r1 r2 r3
+    | Icmp_ne -> mk_cmp_util "ne" r1 r2 r3
+    | Icmp_slt -> mk_cmp_util "l" r1 r2 r3
+    | Icmp_sle -> mk_cmp_util "le" r1 r2 r3
+    | Icmp_sgt -> mk_cmp_util "g" r1 r2 r3
+    | Icmp_sge -> mk_cmp_util "ge" r1 r2 r3
+    | _ -> failwith "TODO: implement cmp instruction")
   | Iinst_call (fname, args) ->
-      let args_insts =
-        InstselCommon.generate_caller_args cc_info args X86Mir.mk_mov
-          X86Mir.mk_push
-      in
-      args_insts @ mk_call cc_info fname @ [ mk_mov r1 X86Regs.return_reg ]
+      mk_call cc_info r1 fname (List.map from_ir_operand args)
   | Iinst_ret -> mk_ret cc_info
   | Iinst_retv value -> (
       match value with
