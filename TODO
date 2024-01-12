@@ -1,1 +1,3 @@
 - Allow immediates for shift operations (shl eax, 2 for example)
+- Dump MIR functions
+- Dump after each pass

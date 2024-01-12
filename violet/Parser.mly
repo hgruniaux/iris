@@ -4,7 +4,7 @@
 
 %token EOF
 %token <string> IDENT
-%token <nativeint> INTEGER
+%token <Z.t> INTEGER
 %token <string> STRING
 %token COLON COMMA SEMI LPAR RPAR LBRACKET RBRACKET
 %token PLUS MINUS STAR SLASH PERCENT LESS_LESS GREATER_GREATER
@@ -39,8 +39,8 @@ param:
 | i=IDENT { i }
 
 expr:
-| FALSE { Eint 0n }
-| TRUE { Eint 1n }
+| FALSE { Eint (Z.zero) }
+| TRUE { Eint (Z.one) }
 | i=INTEGER { Eint i }
 | s=STRING { Estring s }
 | i=IDENT { Evar i }

@@ -20,7 +20,7 @@ module Constant = Ir.Constant
 
 type reg = Ir.reg
 type label = Label.t
-type imm = nativeint
+type imm = Z.t
 type constant = Constant.t
 
 type operand =
@@ -66,6 +66,7 @@ and fn = {
   fn_params : reg list;
   fn_blocks : bb Label.map;
   fn_entry : label;
+  mutable fn_frame : frame option;
 }
 
 let mk_inst ?(is_mov = false) kind operands ~defs ~uses =
@@ -137,7 +138,7 @@ let pp_operand ppf op =
   match op with
   | Oreg r -> pp_register ppf r
   | Oframe n -> Format.fprintf ppf "STACK[%d]" n
-  | Oimm i -> Format.fprintf ppf "%s" (Nativeint.to_string i)
+  | Oimm i -> Z.pp_print ppf i
   | Oconst c -> Format.fprintf ppf "%a" pp_constant c
   | Olabel l -> Format.fprintf ppf "%a" pp_label l
   | Ofunc fn -> Format.fprintf ppf "%s" fn.fn_name

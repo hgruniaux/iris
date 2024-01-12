@@ -73,53 +73,9 @@ let report (b, e) =
   eprintf "File \"%s\", line %d, characters %d-%d:\n" file l fc lc
 
 let compile_fn arch ir_fn =
-  if !dump_ir then IrPP.dump_ir ir_fn;
-  if !dump_ir_dot then IrPP.dump_dot ir_fn;
-
-  SimplifyCFGPass.pass_fn ir_fn;
-  CopyPropagationPass.pass_fn ir_fn;
-  DCEPass.pass_fn ir_fn;
-
-  if !dump_opt_ir then IrPP.dump_ir ir_fn;
-  if !dump_opt_ir_dot then IrPP.dump_dot ir_fn;
-
-  IsolateRetPass.pass_fn ir_fn;
-  LowerPhiPass.pass_fn ir_fn;
-
-  let mir_fn = Backend.instsel_fn arch ir_fn in
-
-  LoadParamsPass.pass_fn arch mir_fn;
-  LowerCallsPass.pass_fn arch mir_fn;
-  PrologEpilogPass.pass_fn arch mir_fn;
-
-  if !dump_mir then Mir.dump_mir [ mir_fn ];
-
-  let liveinfo = Liveness.compute mir_fn in
-  if !dump_liveinfo then Liveness.dump_liveinfo mir_fn liveinfo;
-
-  let regs = Mir.collect_pseudo_registers_in_fn mir_fn in
-  let interf = Interference.make regs liveinfo in
-  if !dump_interf then Interference.dump_interference interf;
-
-  let colors = RegAlloc.color arch interf in
-  if !dump_reg_alloc then RegAlloc.dump_colors colors;
-
-  if false then (
-    InsertSpillsPass.pass_fn colors mir_fn;
-
-    Format.printf "##### AFTER@.";
-    let liveinfo = Liveness.compute mir_fn in
-    if !dump_liveinfo then Liveness.dump_liveinfo mir_fn liveinfo;
-
-    let regs = Mir.collect_pseudo_registers_in_fn mir_fn in
-    let interf = Interference.make regs liveinfo in
-    if !dump_interf then Interference.dump_interference interf;
-
-    if !dump_mir then Mir.dump_mir [ mir_fn ];
-    mir_fn)
-  else (
-    RewriteVRegsPass.pass_fn colors mir_fn;
-    mir_fn)
+  let pm = PassManager.create arch in
+  let mir_fn = PassManager.run pm ir_fn in
+  mir_fn
 
 let () =
   let c = open_in file in

@@ -1,4 +1,4 @@
-FLAGS = --dump-mir --dump-reg-alloc
+FLAGS =
 
 all:
 	dune build

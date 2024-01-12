@@ -1,6 +1,6 @@
 (executable
  (name violet)
- (libraries LibIris))
+ (libraries LibIris zarith))
 
 (ocamllex
  (modules Lexer))

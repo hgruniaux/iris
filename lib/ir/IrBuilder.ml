@@ -48,13 +48,15 @@ let mk_const ib c =
   add_inst ib rout (Iinst_cst c)
 
 (** The true constant. *)
-let mk_true ib = mk_const ib (Ir.get_int_constant ib.ctx 1n)
+let mk_true ib = mk_const ib (Ir.get_int_constant ib.ctx Z.one)
 
 (** The false constant. *)
-let mk_false ib = mk_const ib (Ir.get_int_constant ib.ctx 0n)
+let mk_false ib = mk_const ib (Ir.get_int_constant ib.ctx Z.zero)
 
 (** An integer constant. *)
-let mk_int ib imm = mk_const ib (Ir.get_int_constant ib.ctx imm)
+let mk_int ib imm =
+  let rout = Reg.fresh () in
+  add_inst ib rout (Iinst_loadi imm)
 
 (** A string constant. The final NUL byte is not added by this function,
     so if you want a NUL-terminated string either call mk_zstring or

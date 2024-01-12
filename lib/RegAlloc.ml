@@ -257,10 +257,22 @@ and select all_colors g v =
     M.add v (Reg selected_color) coloring
   with Not_found -> M.add v (Spilled 0) coloring
 
+let select_frame_indices coloring =
+  let i = ref 0 in
+  M.map
+    (fun color ->
+      match color with
+      | Spilled _ ->
+          let color = Spilled !i in
+          incr i;
+          color
+      | _ -> color)
+    coloring
+
 let color arch g =
   let all_colors = Backend.registers arch in
   let coloring = simplify all_colors g in
-  coloring
+  select_frame_indices coloring
 
 let dump_colors colors =
   Format.printf "Coloration (register allocation):@.";
@@ -269,8 +281,7 @@ let dump_colors colors =
       if Reg.is_pseudo reg then
         match color with
         | Reg color ->
-            Format.printf "%a -> %a@." IrPP.pp_register reg
-              IrPP.pp_register color
-        | Spilled n ->
-            Format.printf "%a -> Spilled %d@." IrPP.pp_register reg n)
+            Format.printf "%a -> %a@." IrPP.pp_register reg IrPP.pp_register
+              color
+        | Spilled n -> Format.printf "%a -> Spilled %d@." IrPP.pp_register reg n)
     colors

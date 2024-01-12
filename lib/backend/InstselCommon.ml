@@ -37,4 +37,5 @@ let instsel_fn fn instsel_bb =
     Mir.fn_params = fn.fn_params;
     Mir.fn_blocks = mir_blocks;
     Mir.fn_entry = Option.get fn.fn_entry;
+    Mir.fn_frame = None;
   }

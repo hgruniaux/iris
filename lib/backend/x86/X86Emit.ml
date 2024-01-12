@@ -96,9 +96,10 @@ let emit_operand ctx ppf operand =
   | Oframe n ->
       (* TODO: better way to compute offset, more flexible (if we support other structs or smaller integers) *)
       (* Minus because the stack is top to bottom. *)
-      let offset = -(if ctx.is_x64 then n * 8 else n * 4) in
-      Format.fprintf ppf "[%s + %n]" (name_of_reg ctx X86Regs.ebp) offset
-  | Oimm i -> Format.fprintf ppf "%s" (Nativeint.to_string i)
+      let n = n + 1 in
+      let offset = (if ctx.is_x64 then n * 8 else n * 4) in
+      Format.fprintf ppf "[%s - %n]" (name_of_reg ctx X86Regs.ebp) offset
+  | Oimm i -> Format.fprintf ppf "%s" (Z.to_string i)
   | Oconst c -> emit_constant ppf c
   | Olabel l -> emit_label ppf l
   | Ofunc f -> Format.fprintf ppf "%s" f.fn_name
@@ -186,7 +187,7 @@ let emit_constant_values ppf constants =
     (fun label cst ->
       Format.fprintf ppf "%a: " emit_constant label;
       match cst with
-      | Ir.Icst_int s -> Format.fprintf ppf ".int %s\n" (Nativeint.to_string s)
+      | Ir.Icst_int s -> Format.fprintf ppf ".int %a\n" Z.pp_print s
       | Ir.Icst_string s ->
           Format.fprintf ppf ".ascii \"%s\"\n" (String.escaped s))
     constants

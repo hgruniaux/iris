@@ -13,18 +13,15 @@
 
 open Mir
 
-type t = Reg.set Reg.map
-
-type inst_liveinfo = {
-  inst_live_in : Reg.set;
-  inst_live_out : Reg.set;
-}
+type inst_liveinfo = { inst_live_in : Reg.set; inst_live_out : Reg.set }
 
 type bb_lifeinfo = {
   mutable bb_live_in : Reg.set;
   mutable bb_live_out : Reg.set;
   mutable bb_inst_liveinfo : (inst, inst_liveinfo) Hashtbl.t;
 }
+
+type t = (Mir.bb, bb_lifeinfo) Hashtbl.t
 
 (** Returns the variables alive at input of the basic block [bb]
      given the variables alive [live_out] at output. *)

@@ -79,7 +79,7 @@ let pp_cmp ppf = function
 
 let pp_constant_value ppf constant =
   match constant with
-  | Icst_int n -> Format.fprintf ppf "%s" (Nativeint.to_string n)
+  | Icst_int n -> Z.pp_print ppf n
   | Icst_string str -> Format.fprintf ppf "\"%s\"" (String.escaped str)
 
 let pp_constant =
@@ -96,12 +96,13 @@ let pp_constant =
 let pp_operand ppf operand =
   match operand with
   | Iop_reg reg -> pp_register ppf reg
-  | Iop_imm imm -> Format.fprintf ppf "%s" (Nativeint.to_string imm)
+  | Iop_imm imm -> Z.pp_print ppf imm
 
 let pp_instruction ppf inst =
   let n = inst.i_name in
   match inst.i_kind with
   | Iinst_cst cst -> Format.fprintf ppf "%a = %a" pp_register n pp_constant cst
+  | Iinst_loadi cst -> Format.fprintf ppf "%a = %a" pp_register n Z.pp_print cst
   | Iinst_mov r -> Format.fprintf ppf "%a = %a" pp_register n pp_register r
   | Iinst_extract_value (cst, idx) ->
       Format.fprintf ppf "%a = extractvalue %a %a" pp_register n pp_constant cst
@@ -174,7 +175,8 @@ let dump_ctx ctx =
 
   Hashtbl.iter
     (fun name cst_value ->
-      Format.fprintf ppf "%a = constant %a\n" pp_constant name pp_constant_value cst_value)
+      Format.fprintf ppf "%a = constant %a\n" pp_constant name pp_constant_value
+        cst_value)
     ctx.ctx_constants;
   List.iter (pp_fn ppf) ctx.ctx_funcs
 

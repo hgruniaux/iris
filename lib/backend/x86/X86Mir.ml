@@ -36,28 +36,49 @@ let uses_from_operands ops =
   let rec loop ops acc =
     match ops with
     | [] -> []
-    | op :: r -> (
-        match op with Ir.Iop_reg r -> loop r (r :: acc) | _ -> loop r acc)
+    | op :: remaining -> (
+        match op with
+        | Ir.Iop_reg r -> loop remaining (r :: acc)
+        | _ -> loop remaining acc)
   in
   loop ops []
 
 let use_from_operand op = match op with Ir.Iop_reg r -> [ r ] | _ -> []
 
+let insert_mov_regs insts r1 r2 =
+  insts :=
+    Mir.mk_inst "mov"
+      [ Mir.Oreg r1; Mir.Oreg r2 ]
+      ~defs:[ r1 ] ~uses:[ r2 ] ~is_mov:true
+    :: !insts
+
 let insert_mov insts r1 r2 =
-  let r1 = reg_of_operand r1 in
   insts :=
     Mir.mk_inst "mov"
       [ Mir.Oreg r1; from_ir_operand r2 ]
       ~defs:[ r1 ] ~uses:(use_from_operand r2) ~is_mov:true
     :: !insts
 
+let insert_mov_constant insts r1 cst =
+  insts :=
+    Mir.mk_inst "mov" [ Mir.Oreg r1; Mir.Oconst cst ] ~defs:[ r1 ] ~uses:[]
+    :: !insts
+
+let from_ir_operand_as_reg insts op =
+  match op with
+  | Ir.Iop_reg r -> r
+  | Ir.Iop_imm _ ->
+      let tmp = Mir.Reg.fresh () in
+      insert_mov insts tmp op;
+      tmp
+
 let insert_binop_util insts kind r1 r2 r3 =
   insert_mov insts r1 r2;
-  let r1 = reg_of_operand r1 in
   insts :=
     Mir.mk_inst kind
       [ Mir.Oreg r1; from_ir_operand r3 ]
-      ~defs:[ r1 ] ~uses:(use_from_operand r3)
+      ~defs:[ r1; X86Regs.eflags ]
+      ~uses:(r1 :: use_from_operand r3)
     :: !insts
 
 let insert_add insts r1 r2 r3 = insert_binop_util insts "add" r1 r2 r3
@@ -67,10 +88,213 @@ let insert_and insts r1 r2 r3 = insert_binop_util insts "and" r1 r2 r3
 let insert_or insts r1 r2 r3 = insert_binop_util insts "or" r1 r2 r3
 let insert_xor insts r1 r2 r3 = insert_binop_util insts "xor" r1 r2 r3
 
-let insert_div_util insts kind rout r1 r2 r3 =
+let insert_unop_util insts kind r1 r2 =
   insert_mov insts r1 r2;
-  let r1 = reg_of_operand r1 in
+  insts :=
+    Mir.mk_inst kind [ Mir.Oreg r1 ] ~defs:[ r1; X86Regs.eflags ] ~uses:[ r1 ]
+    :: !insts
 
+let insert_not insts r1 r2 = insert_unop_util insts "not" r1 r2
+let insert_neg insts r1 r2 = insert_unop_util insts "neg" r1 r2
+
+let insert_div_util insts kind rout r1 r2 r3 ~is_x64 =
+  insert_mov insts r1 r2;
+  let r3 = from_ir_operand_as_reg insts r3 in
+  insert_mov_regs insts X86Regs.eax r1;
+  insts :=
+    Mir.mk_inst
+      (if is_x64 then "cqo" else "cdq")
+      []
+      ~defs:[ X86Regs.eax; X86Regs.edx ]
+      ~uses:[ X86Regs.eax ]
+    :: !insts;
+  insts :=
+    Mir.mk_inst kind [ Mir.Oreg r3 ]
+      ~defs:[ X86Regs.eax; X86Regs.edx; X86Regs.eflags ]
+      ~uses:[ X86Regs.eax; X86Regs.edx; r3 ]
+    :: !insts;
+  insert_mov_regs insts r1 rout
+
+let insert_div insts r1 r2 r3 = insert_div_util insts "div" X86Regs.eax r1 r2 r3
+let insert_rem insts r1 r2 r3 = insert_div_util insts "div" X86Regs.edx r1 r2 r3
+
+let insert_idiv insts r1 r2 r3 =
+  insert_div_util insts "idiv" X86Regs.eax r1 r2 r3
+
+let insert_irem insts r1 r2 r3 =
+  insert_div_util insts "idiv" X86Regs.edx r1 r2 r3
+
+let insert_shift_util insts kind r1 r2 r3 =
+  insert_mov insts r1 r2;
+  let cl = X86Regs.ecx in
+  (* We can not use from_ir_operand as shift instruction on x86 requires
+     that the shift count is stored in the register CL (except if it is
+     an immediate). *)
+  let r3_op =
+    match r3 with
+    | Ir.Iop_reg r3 ->
+        insert_mov_regs insts cl r3;
+        Mir.Oreg cl
+    | Ir.Iop_imm imm -> Mir.Oimm imm
+  in
+  insts :=
+    Mir.mk_inst kind [ Mir.Oreg r1; r3_op ] ~uses:[ r1; cl ]
+      ~defs:[ r1; X86Regs.eflags ]
+    :: !insts
+
+let insert_sal insts r1 r2 r3 = insert_shift_util insts "sal" r1 r2 r3
+let insert_shl insts r1 r2 r3 = insert_shift_util insts "shl" r1 r2 r3
+let insert_sar insts r1 r2 r3 = insert_shift_util insts "sar" r1 r2 r3
+let insert_shr insts r1 r2 r3 = insert_shift_util insts "shr" r1 r2 r3
+
+let insert_cmp_util insts cc r1 r2 r3 =
+  let r2 = from_ir_operand_as_reg insts r2 in
+  (* cmp r2 r3 *)
+  insts :=
+    Mir.mk_inst "cmp"
+      [ Oreg r2; from_ir_operand r3 ]
+      ~defs:[ X86Regs.eflags ]
+      ~uses:(r2 :: use_from_operand r3)
+    :: !insts;
+  (* setcc r1 *)
+  insts :=
+    Mir.mk_inst ("set" ^ cc) [ Oreg r1 ] ~defs:[ r1 ] ~uses:[ X86Regs.eflags ]
+    :: !insts;
+  (* and r1, 0xff *)
+  insts :=
+    Mir.mk_inst "and"
+      [ Oreg r1; Oimm (Z.of_int 0xff) ]
+      ~defs:[ r1; X86Regs.eflags ] ~uses:[ r1 ]
+    :: !insts
+
+let insert_push insts r1 =
+  insts :=
+    Mir.mk_inst "push"
+      [ from_ir_operand r1 ]
+      ~defs:[ X86Regs.esp ] ~uses:(use_from_operand r1)
+    :: !insts
+
+let insert_pop insts r1 =
+  insts :=
+    Mir.mk_inst "pop"
+      [ from_ir_operand r1 ]
+      ~defs:(X86Regs.esp :: use_from_operand r1)
+      ~uses:[]
+    :: !insts
+
+let insert_jmp insts l =
+  insts :=
+    Mir.mk_inst "jmp" [ Olabel l ] ~defs:[] ~uses:[ X86Regs.eflags ] :: !insts
+
+let insert_jmp_conditional insts cond tl el =
+  let cond = from_ir_operand_as_reg insts cond in
+  insts :=
+    Mir.mk_inst "cmp" [ Oreg cond; Oimm Z.zero ] ~defs:[ X86Regs.eflags ]
+      ~uses:[ cond ]
+    :: !insts;
+  insts :=
+    (* The else_label and then_label are inversed below because we check
+       on zero (or false). *)
+    Mir.mk_inst "jz" [ Olabel el; Olabel tl ] ~defs:[] ~uses:[ X86Regs.eflags ]
+    :: !insts
+
+let insert_call insts cc_info r1 callee args =
+  insts :=
+    Mir.mk_inst "call"
+      (Oreg r1 :: Ofunc callee :: args)
+      ~defs:(Mir.Reg.Set.elements cc_info.cc_caller_saved)
+      ~uses:[]
+    :: !insts
+
+let insert_ret insts cc_info =
+  insts :=
+    Mir.mk_inst "ret" [] ~defs:[]
+      ~uses:(Mir.Reg.Set.elements cc_info.cc_callee_saved)
+    :: !insts
+
+(** Same as insert_ret but takes a value to return.
+
+    This will insert either a mov or a push instruction (depending on the
+    calling convention) to pass to caller the given [value]. Moreover,
+    the uses field of the ret instruction is different from the one
+    returning void. *)
+let insert_ret_value insts cc_info value =
+  let return_reg_use =
+    match cc_info.cc_return_reg with
+    | None ->
+        (* Should probably never happen, as almost always the return value is
+           stored in EAX under x86 or x86-64. But for sake of compatibility of
+           the general custom calling convention interface, we support it. *)
+        insert_push insts value;
+        []
+    | Some return_reg ->
+        insert_mov insts return_reg value;
+        [ return_reg ]
+  in
+  insts :=
+    Mir.mk_inst "ret" [] ~defs:[]
+      ~uses:(return_reg_use @ Mir.Reg.Set.elements cc_info.cc_callee_saved)
+    :: !insts
+
+(** Should we use the x86 enter instruction to allocate the function's frame or push and mov?
+    By default, we use push and mov instructions instead (WAY faster on modern CPUs).
+    You should never use the enter instruction instead of push and mov, see:
+      - comment in insert_frame_alloc
+      - https://stackoverflow.com/a/67424971 *)
+let use_enter_inst = ref false
+
+(** Should we use the x86 leave instruction to deallocate the function's frame or pop and mov?
+    By default, we use mov and pop instructions instead (faster on modern CPUs). *)
+let use_leave_inst = ref false
+
+(* For the function prologue and epilogue (frame allocation and deallocation),
+   see https://en.wikipedia.org/wiki/Function_prologue_and_epilogue. *)
+
+let insert_frame_alloc insts fn =
+  (*
+    push ebp
+    mov ebp, esp
+    sub esp, N
+  *)
+  let frame = Option.get fn.Mir.fn_frame in
+  let n = Z.of_int (frame.frame_locals * 8) in
+  (* TODO: Allocate stack for local variables *)
+  if !use_enter_inst then
+    (* In practice, no one should use the enter instruction instead of push then mov.
+       The former is way slower on modern CPUs. Still, for sake of completeness
+       and comparison, we support code generation with the enter instruction.
+       Ref: https://stackoverflow.com/a/67424971 *)
+    insts :=
+      Mir.mk_inst "enter" [ Oimm n; Oimm Z.zero ]
+        ~defs:[ X86Regs.esp; X86Regs.ebp ]
+        ~uses:[ X86Regs.esp ]
+      :: !insts
+  else (
+    insert_push insts (Ir.Iop_reg X86Regs.ebp);
+    insert_mov_regs insts X86Regs.ebp X86Regs.esp;
+    if n > Z.zero then (
+      (* Free stack space of local variables *)
+      insert_sub insts X86Regs.esp (Ir.Iop_reg X86Regs.esp) (Ir.Iop_imm n);
+      (* Insert code to align the stack pointer to 16. *)
+      (* TODO: The compiler should automatically align the stack. *)
+      insert_and insts X86Regs.esp (Ir.Iop_reg X86Regs.esp)
+        (Ir.Iop_imm (Z.neg (Z.of_int 16)))))
+
+let insert_frame_dealloc insts fn =
+  (*
+    mov esp, ebp
+    pop ebp
+  *)
+  ignore fn;
+  if !use_leave_inst then
+    insts :=
+      Mir.mk_inst "leave" []
+        ~defs:[ X86Regs.esp; X86Regs.ebp ]
+        ~uses:[ X86Regs.ebp ]
+      :: !insts
+  else (
+    insert_mov_regs insts X86Regs.esp X86Regs.ebp;
+    insert_pop insts (Ir.Iop_reg X86Regs.ebp))
 
 let mk_mov r1 r2 =
   Mir.mk_inst "mov"
@@ -135,119 +359,6 @@ let mk_add r1 r2 r3 = mk_binop_util "add" r1 r2 r3
 let mk_addi r1 r2 imm = mk_binop_imm_util "add" r1 r2 imm
 let mk_sub r1 r2 r3 = mk_binop_util "sub" r1 r2 r3
 let mk_subi r1 r2 imm = mk_binop_imm_util "sub" r1 r2 imm
-let mk_imul r1 r2 r3 = mk_binop_util "imul" r1 r2 r3
-
-let mk_imuli r1 r2 imm =
-  let r2, insts =
-    match r2 with
-    | Ir.Iop_reg r -> (r, [])
-    | Ir.Iop_imm imm ->
-        let tmp = Mir.Reg.fresh () in
-        (tmp, [ mk_movi tmp imm ])
-  in
-  insts
-  @ [
-      Mir.mk_inst "imul"
-        [ Mir.Oreg r1; Mir.Oreg r2; Mir.Oimm imm ]
-        ~defs:[ r1 ] ~uses:[ r1; r2 ];
-    ]
-
-let mk_cqo () =
-  Mir.mk_inst "cqo" [] ~defs:[ X86Regs.eax; X86Regs.edx ] ~uses:[ X86Regs.eax ]
-
-let mk_div_like_util kind rout r1 r2 r3 =
-  let r2, insts =
-    match r2 with
-    | Ir.Iop_reg r -> (r, [])
-    | Ir.Iop_imm imm ->
-        let tmp = Mir.Reg.fresh () in
-        (tmp, [ mk_movi tmp imm ])
-  in
-  let r3, insts =
-    match r3 with
-    | Ir.Iop_reg r -> (r, insts)
-    | Ir.Iop_imm imm ->
-        let tmp = Mir.Reg.fresh () in
-        (tmp, mk_movi tmp imm :: insts)
-  in
-  insts
-  @ [
-      mk_mov X86Regs.eax r2;
-      (* FIXME: CQO or CQD depending on x86 or x86-64 *)
-      mk_cqo ();
-      Mir.mk_inst kind [ Mir.Oreg r3 ]
-        ~defs:[ X86Regs.eax; X86Regs.edx ]
-        ~uses:[ r3 ];
-      mk_mov r1 rout;
-    ]
-
-let mk_div r1 r2 r3 = mk_div_like_util "div" X86Regs.eax r1 r2 r3
-let mk_rem r1 r2 r3 = mk_div_like_util "div" X86Regs.edx r1 r2 r3
-let mk_idiv r1 r2 r3 = mk_div_like_util "idiv" X86Regs.eax r1 r2 r3
-let mk_irem r1 r2 r3 = mk_div_like_util "idiv" X86Regs.edx r1 r2 r3
-let mk_and r1 r2 r3 = mk_binop_util "and" r1 r2 r3
-let mk_or r1 r2 r3 = mk_binop_util "or" r1 r2 r3
-let mk_xor r1 r2 r3 = mk_binop_util "xor" r1 r2 r3
-let mk_xor r1 r2 r3 = mk_binop_util "xor" r1 r2 r3
-
-let mk_shift_util kind r1 r2 r3 =
-  let r2, insts =
-    match r2 with
-    | Ir.Iop_reg r -> (r, [])
-    | Ir.Iop_imm imm ->
-        let tmp = Mir.Reg.fresh () in
-        (tmp, [ mk_movi tmp imm ])
-  in
-  let r3, insts =
-    match r3 with
-    | Ir.Iop_reg r -> (r, insts)
-    | Ir.Iop_imm imm ->
-        let tmp = Mir.Reg.fresh () in
-        (tmp, mk_movi tmp imm :: insts)
-  in
-  insts
-  @
-  let cl = X86Regs.ecx in
-  [
-    mk_mov cl r3;
-    mk_mov r1 r2;
-    Mir.mk_inst kind [ Mir.Oreg r1; Mir.Oreg cl ] ~uses:[ r1; cl ] ~defs:[ r1 ];
-  ]
-
-let mk_sal r1 r2 r3 = mk_shift_util "sal" r1 r2 r3
-let mk_shl r1 r2 r3 = mk_shift_util "shl" r1 r2 r3
-let mk_sar r1 r2 r3 = mk_shift_util "sar" r1 r2 r3
-let mk_shr r1 r2 r3 = mk_shift_util "shr" r1 r2 r3
-
-let mk_unop_util kind r1 r2 =
-  let r2 =
-    match r2 with Ir.Iop_reg r -> Mir.Oreg r | Ir.Iop_imm imm -> Mir.Oimm imm
-  in
-  [
-    mk_mov_operand r1 r2;
-    Mir.mk_inst kind [ Mir.Oreg r1 ] ~uses:[ r1 ] ~defs:[ r1 ];
-  ]
-
-let mk_not r1 r2 = mk_unop_util "not" r1 r2
-let mk_neg r1 r2 = mk_unop_util "neg" r1 r2
-
-let mk_cmp_util cc r1 r2 r3 =
-  let r2, uses =
-    match r2 with
-    | Ir.Iop_reg r -> (Mir.Oreg r, [ r ])
-    | Ir.Iop_imm imm -> (Mir.Oimm imm, [])
-  in
-  let r3, uses =
-    match r3 with
-    | Ir.Iop_reg r -> (Mir.Oreg r, r :: uses)
-    | Ir.Iop_imm imm -> (Mir.Oimm imm, uses)
-  in
-  [
-    (* FIXME: defs and uses *)
-    Mir.mk_inst "cmp" [ r2; r3 ] ~defs:[] ~uses;
-    Mir.mk_inst ("set" ^ cc) [ Oreg r1 ] ~defs:[ r1 ] ~uses:[];
-    Mir.mk_inst "and" [ Oreg r1; Oimm 0xffn ] ~defs:[ r1 ] ~uses:[ r1 ];
-  ]
 
 let mk_push r1 =
   Mir.mk_inst "push" [ Oreg r1 ] ~defs:[ X86Regs.esp ] ~uses:[ X86Regs.esp; r1 ]
@@ -258,31 +369,4 @@ let mk_pop r1 =
 let mk_pop_many arch count =
   (* TODO: fix item size * count *)
   ignore arch;
-  mk_subi X86Regs.esp (Ir.Iop_reg X86Regs.esp) (Nativeint.of_int count)
-
-let mk_call cc_info r1 fname args =
-  [
-    Mir.mk_inst "call"
-      (Oreg r1 :: Ofunc fname :: args)
-      ~defs:(Mir.Reg.Set.elements cc_info.cc_caller_saved)
-      ~uses:[];
-  ]
-
-let mk_ret cc_info =
-  [
-    Mir.mk_inst "ret" [] ~defs:[]
-      ~uses:(Mir.Reg.Set.elements cc_info.cc_callee_saved);
-  ]
-
-(* Return with register. *)
-let mk_retr cc_info r1 = mk_mov X86Regs.return_reg r1 :: mk_ret cc_info
-
-(* Return with immediate. *)
-let mk_reti cc_info imm = mk_movi X86Regs.return_reg imm :: mk_ret cc_info
-let mk_jmp l = [ Mir.mk_inst "jmp" [ Olabel l ] ~defs:[] ~uses:[] ]
-
-let mk_jmpc r tl el =
-  [
-    Mir.mk_inst "cmp" [ Oreg r; Oimm 0n ] ~defs:[] ~uses:[ r ];
-    Mir.mk_inst "jz" [ Olabel el; Olabel tl ] ~defs:[] ~uses:[];
-  ]
+  mk_subi X86Regs.esp (Ir.Iop_reg X86Regs.esp) (Z.of_int count)

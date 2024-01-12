@@ -54,11 +54,11 @@ and ctx = {
   ctx_constants : (constant, constant_value) Hashtbl.t;
       (** The hash table that links constant IDs to their constant value. *)
   ctx_string_constants : (string, constant) Hashtbl.t;
-  ctx_int_constants : (nativeint, constant) Hashtbl.t;
+  ctx_int_constants : (Z.t, constant) Hashtbl.t;
 }
 
 and constant_value =
-  | Icst_int of nativeint
+  | Icst_int of Z.t
       (** A machine-dependant integer. All integers use 2-complement representation. *)
   | Icst_string of string
       (** A byte string. The string is not implicitly NUL-terminated. *)
@@ -96,7 +96,7 @@ and bb = {
   mutable b_successors : Label.set;
 }
 
-and operand = Iop_reg of reg | Iop_imm of nativeint
+and operand = Iop_reg of reg | Iop_imm of Z.t
 
 and inst = {
   i_name : reg;
@@ -112,6 +112,7 @@ and inst = {
 
 and inst_kind =
   | Iinst_cst of constant
+  | Iinst_loadi of Z.t
   | Iinst_extract_value of constant * reg
   | Iinst_mov of reg
   | Iinst_load of reg
@@ -296,7 +297,7 @@ let update_uses inst ~remove =
     match op with Iop_imm _ -> () | Iop_reg r -> update_uses_in_reg r
   in
   match inst.i_kind with
-  | Iinst_cst _ | Iinst_alloca _ -> ()
+  | Iinst_cst _ | Iinst_loadi _ | Iinst_alloca _ -> ()
   | Iinst_extract_value (_, r) | Iinst_mov r | Iinst_load r ->
       update_uses_in_reg r
   | Iinst_store (r, o) ->
@@ -346,6 +347,7 @@ let compute_inst_type bb kind =
       | Some (Icst_int _) -> Ityp_int
       | Some (Icst_string _) -> Ityp_ptr
       | None -> assert false)
+  | Iinst_loadi _ -> Ityp_int
   | Iinst_binop (_, lhs, rhs) | Iinst_cmp (_, lhs, rhs) ->
       let lhs_t = type_of_operand lhs in
       let rhs_t = type_of_operand rhs in

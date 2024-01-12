@@ -6,7 +6,8 @@ tmp/
 *.s
 *.v
 *.c
+*.exe
 
+test/out/
 !test/*.out
 !test/*.v
-test/out

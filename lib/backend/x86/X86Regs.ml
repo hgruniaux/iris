@@ -32,19 +32,18 @@ let rflags = eflags
 
 (* Available registers in the x86 architecture. *)
 let x86_registers =
-  Mir.Reg.Set.of_list
-    [ eax; ebx; ecx; edx; esp; (* ebp reserved for spilling *) esi; edi ]
+  Mir.Reg.Set.of_list [ eax; ebx; ecx; edx; esp; ebp; esi; edi ]
 
 (* Available registers in the x86-64 architecture. *)
 let x64_registers =
   Mir.Reg.Set.union x86_registers
-    (Mir.Reg.Set.of_list [ r8; r9; r10; r11; r12; r13; r14; r15 ])
+    (Mir.Reg.Set.of_list [ r8; r9; r12; r13; r14; r15 ])
 
 (** The register used to store the return value of a function (EAX/RAX). *)
 let return_reg = eax
 
 (** The temporary register used to load and store spilled registers. *)
-let spill_reg = ebp
+let spill_regs = [ r10; r11 ]
 
 (* We use the cdecl calling convention: *)
 
@@ -52,7 +51,7 @@ let spill_reg = ebp
 let x86_caller_saved = Mir.Reg.Set.of_list [ eax; ecx; edx ]
 
 (** The callee saved (volatile) registers of the x86 architecture. *)
-let x86_callee_saved = Mir.Reg.Set.of_list [ ebx; edi; esi; esp ]
+let x86_callee_saved = Mir.Reg.Set.of_list [ ebx; edi; esi; esp; ebp ]
 
 (** The registers used to pass arguments in the x86 architecture.
     We pass all arguments by the stack. *)
@@ -77,7 +76,19 @@ let x64_args_regs_count = List.length x64_args_regs
 let () =
   (* Some sanity checks. The temporary register used to implement spilling
      should not be used anywhere. *)
-  assert (not (Mir.Reg.Set.mem spill_reg x86_registers));
-  assert (not (Mir.Reg.Set.mem spill_reg x64_registers));
-  assert (not (List.mem spill_reg x86_args_regs));
-  assert (not (List.mem spill_reg x64_args_regs))
+  assert (
+    List.for_all
+      (fun spill_reg -> not (Mir.Reg.Set.mem spill_reg x86_registers))
+      spill_regs);
+  assert (
+    List.for_all
+      (fun spill_reg -> not (Mir.Reg.Set.mem spill_reg x64_registers))
+      spill_regs);
+  assert (
+    List.for_all
+      (fun spill_reg -> not (List.mem spill_reg x86_args_regs))
+      spill_regs);
+  assert (
+    List.for_all
+      (fun spill_reg -> not (List.mem spill_reg x64_args_regs))
+      spill_regs)

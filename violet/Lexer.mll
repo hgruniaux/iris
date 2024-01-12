@@ -74,7 +74,7 @@ rule next_token = parse
   | ')' { RPAR}
   | '{' { LBRACKET }
   | '}' { RBRACKET }
-  | integer as i { INTEGER (Nativeint.of_string i) }
+  | integer as i { INTEGER (Z.of_string i) }
   | identifier as i { resolve_keyword i }
 
   | '"'

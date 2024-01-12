@@ -1,8 +1,8 @@
 type expr =
-  | Eint of nativeint
+  | Eint of Z.t
   | Estring of string
   | Evar of string
-  | Enew of nativeint
+  | Enew of Z.t
   | Ecall of string * expr list
   | Ebinop of binop * expr * expr
   | Eunop of unop * expr

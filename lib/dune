@@ -1,7 +1,8 @@
 (include_subdirs unqualified)
 
 (library
- (name LibIris))
+ (name LibIris)
+ (libraries zarith))
 
 (env
   (dev
