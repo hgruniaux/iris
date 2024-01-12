@@ -6,3 +6,7 @@ tmp/
 *.s
 *.v
 *.c
+
+!test/*.out
+!test/*.v
+test/out
