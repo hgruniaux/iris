@@ -88,9 +88,8 @@ and fn = {
 and bb = {
   b_func : fn;
   b_label : label;
-  mutable b_first_phi : inst option;
-  mutable b_first_inst : inst option;
-  mutable b_last_inst : inst option;
+  mutable b_phi_insts : inst list;
+  mutable b_insts : inst list;
   mutable b_term : inst option;
   mutable b_predecessors : Label.set;
   mutable b_successors : Label.set;
@@ -113,7 +112,6 @@ and inst = {
 and inst_kind =
   | Iinst_cst of constant
   | Iinst_loadi of Z.t
-  | Iinst_extract_value of constant * reg
   | Iinst_mov of reg
   | Iinst_load of reg
   | Iinst_store of reg * operand
@@ -266,9 +264,8 @@ let mk_bb func =
     {
       b_func = func;
       b_label = label;
-      b_first_phi = None;
-      b_first_inst = None;
-      b_last_inst = None;
+      b_phi_insts = [];
+      b_insts = [];
       b_term = None;
       b_predecessors = Label.Set.empty;
       b_successors = Label.Set.empty;
@@ -298,8 +295,7 @@ let update_uses inst ~remove =
   in
   match inst.i_kind with
   | Iinst_cst _ | Iinst_loadi _ | Iinst_alloca _ -> ()
-  | Iinst_extract_value (_, r) | Iinst_mov r | Iinst_load r ->
-      update_uses_in_reg r
+  | Iinst_mov r | Iinst_load r -> update_uses_in_reg r
   | Iinst_store (r, o) ->
       update_uses_in_reg r;
       update_uses_in_op o
@@ -338,7 +334,6 @@ let compute_inst_type bb kind =
   match kind with
   | Iinst_alloca _ -> Ityp_ptr
   | Iinst_mov r -> type_of_reg r
-  | Iinst_extract_value _ -> Ityp_int (* TODO *)
   | Iinst_load addr ->
       assert (type_of_reg addr = Ityp_ptr);
       Ityp_int (* TODO *)
@@ -381,7 +376,7 @@ let compute_inst_type bb kind =
   | Iinst_unreachable | Iinst_ret | Iinst_retv _ | Iinst_jmp _ | Iinst_jmpc _ ->
       Ityp_void
 
-(** Creates an instruction of the given [typ], [kind] and [name] inside [bb].
+(** Creates an instruction of the given [kind] and [name] inside [bb].
     However, the instruction is not yet inserted in one of [bb]'s instruction list. *)
 let mk_inst bb name kind =
   let inst =
@@ -403,94 +398,10 @@ let mk_inst bb name kind =
 (** Checks if [inst] has side effects. *)
 let has_sideeffect inst =
   match inst.i_kind with
-  | Iinst_cst _ | Iinst_mov _ | Iinst_load _ | Iinst_phi _ | Iinst_binop _
-  | Iinst_unop _ | Iinst_cmp _ ->
+  | Iinst_cst _ | Iinst_loadi _ | Iinst_mov _ | Iinst_load _ | Iinst_phi _
+  | Iinst_binop _ | Iinst_unop _ | Iinst_cmp _ ->
       false
   | _ -> true
-
-(** Inserts the instruction [new_inst] before the given instruction [before_inst].
-    Both instructions must live in the same basic block. *)
-let insert_before before_inst new_inst =
-  assert (in_same_bb before_inst new_inst);
-  assert (not (is_phi new_inst.i_kind || is_term new_inst.i_kind));
-  (* Update the links. *)
-  new_inst.i_prev <- before_inst.i_prev;
-  Option.iter (fun prev -> prev.i_next <- Some new_inst) before_inst.i_prev;
-  before_inst.i_prev <- Some new_inst;
-  new_inst.i_next <- Some before_inst;
-  (* Update the head and tail. *)
-  if Option.is_none new_inst.i_prev then
-    new_inst.i_bb.b_first_inst <- Some new_inst
-
-(** Inserts [inst] at start of [bb]'s instruction list (but after PHI nodes). *)
-let insert_at_start bb inst =
-  assert (inst.i_bb == bb);
-  match bb.b_first_inst with
-  | None ->
-      bb.b_first_inst <- Some inst;
-      bb.b_last_inst <- Some inst
-  | Some first_inst -> insert_before first_inst inst
-
-(** Inserts the instruction [new_inst] after the given instruction [after_inst].
-    Both instructions must live in the same basic block. *)
-let insert_after after_inst new_inst =
-  assert (in_same_bb after_inst new_inst);
-  assert (not (is_phi new_inst.i_kind || is_term new_inst.i_kind));
-  (* Update the links. *)
-  new_inst.i_next <- after_inst.i_next;
-  Option.iter (fun next -> next.i_prev <- Some new_inst) after_inst.i_next;
-  new_inst.i_prev <- Some after_inst;
-  after_inst.i_next <- Some new_inst;
-  (* Update the head and tail. *)
-  if Option.is_none new_inst.i_next then
-    new_inst.i_bb.b_last_inst <- Some new_inst
-
-(** Inserts [inst] at end of [bb]'s instruction list (but before terminator). *)
-let insert_at_end bb inst =
-  assert (inst.i_bb == bb);
-  match bb.b_last_inst with
-  | None ->
-      bb.b_first_inst <- Some inst;
-      bb.b_last_inst <- Some inst
-  | Some last_inst -> insert_after last_inst inst
-
-(** Removes the given [inst] from its basic block and its parent's function. *)
-let remove inst =
-  assert (inst.i_uses = []);
-
-  (* Update the head and tail of the list. *)
-  let bb = inst.i_bb in
-  (* This is a bit tricky because we have many lists with different kinds of instruction. *)
-  (* A PHI instruction. *)
-  if Option.fold ~none:false ~some:(fun i -> i == inst) bb.b_first_phi then
-    bb.b_first_phi <- inst.i_next;
-  (* A simple instruction. *)
-  if Option.fold ~none:false ~some:(fun i -> i == inst) bb.b_first_inst then
-    bb.b_first_inst <- inst.i_next;
-  if Option.fold ~none:false ~some:(fun i -> i == inst) bb.b_last_inst then
-    bb.b_last_inst <- inst.i_prev;
-  (* A terminator. *)
-  if Option.fold ~none:false ~some:(fun i -> i == inst) bb.b_term then
-    bb.b_term <- None;
-
-  (* Update the doubly-linked list. *)
-  Option.iter (fun next -> next.i_prev <- inst.i_prev) inst.i_next;
-  Option.iter (fun prev -> prev.i_next <- inst.i_next) inst.i_prev;
-  inst.i_next <- None;
-  inst.i_prev <- None;
-
-  (* Remove from the function's symbol table. *)
-  Hashtbl.remove bb.b_func.fn_symbol_table inst.i_name;
-
-  update_uses inst ~remove:true
-
-(** Same as [remove inst] but start by removing [inst]'s users before.
-    Therefore, unlike [remove] this function does not need [inst] to have
-    no users. *)
-let rec remove_inst_and_users inst =
-  List.iter (fun user -> remove_inst_and_users user) inst.i_uses;
-  inst.i_uses <- [];
-  remove inst
 
 (** Inserts a phi node with the given [operands] into the given [bb]. *)
 let insert_phi bb operands =
@@ -498,16 +409,12 @@ let insert_phi bb operands =
   let name = Reg.fresh () in
   let inst = mk_inst bb name (Iinst_phi operands) in
   (* Insert the PHI node in [bb]. *)
-  (match bb.b_first_phi with
-  | None -> bb.b_first_phi <- Some inst
-  | Some first_phi ->
-      insert_before first_phi inst;
-      bb.b_first_phi <- Some inst);
+  bb.b_phi_insts <- inst :: bb.b_phi_insts;
   name
 
 (** Returns the successors of a given terminator instruction kind. *)
 let successors_of_term = function
-  | Iinst_ret | Iinst_retv _ -> Label.Set.empty
+  | Iinst_unreachable | Iinst_ret | Iinst_retv _ -> Label.Set.empty
   | Iinst_jmp bb -> Label.Set.singleton bb
   | Iinst_jmpc (_, then_bb, else_bb) -> Label.Set.of_list [ then_bb; else_bb ]
   | _ -> failwith "not a terminator instruction"
@@ -515,6 +422,11 @@ let successors_of_term = function
 (** Sets the [bb]'s terminator to an instruction of the given [kind]. *)
 let set_term bb kind =
   assert (is_term kind);
+
+  (match bb.b_term with
+  | None -> ()
+  | Some inst -> Hashtbl.remove bb.b_func.fn_symbol_table inst.i_name);
+
   let name = Reg.fresh () in
   let inst = mk_inst bb name kind in
   bb.b_term <- Some inst;
@@ -536,26 +448,10 @@ let set_term bb kind =
       succ.b_predecessors <- Label.Set.add bb.b_label succ.b_predecessors)
     bb.b_successors
 
-let iter_phis f bb =
-  let it = ref bb.b_first_phi in
-  while Option.is_some !it do
-    let inst = Option.get !it in
-    f inst;
-    it := inst.i_next
-  done
-
 let iter_insts f bb =
   (* First, iterate over PHI nodes. *)
-  iter_phis f bb;
-
-  (* Then, over basic instructions. *)
-  let it = ref bb.b_first_inst in
-  while Option.is_some !it do
-    let inst = Option.get !it in
-    f inst;
-    it := inst.i_next
-  done;
-
+  List.iter f bb.b_phi_insts;
+  List.iter f bb.b_insts;
   (* And finally, handle the terminator. *)
   match bb.b_term with None -> () | Some term -> f term
 

@@ -47,7 +47,9 @@ let rec compile_expr env ib e =
       | Bge -> IrBuilder.mk_sge ib l r)
   | Eunop (op, sub) -> (
       let s = compile_expr env ib sub in
-      match op with Iunop_neg -> IrBuilder.mk_neg ib s)
+      match op with
+      | Uneg -> IrBuilder.mk_neg ib s
+      | Unot -> IrBuilder.mk_not ib s)
   | Ecall (name, args) ->
       let cargs =
         List.map (fun arg -> Ir.Iop_reg (compile_expr env ib arg)) args
@@ -143,5 +145,6 @@ and compile_func ib (name, params, body) =
     (fun name reg -> Hashtbl.add env.vars name reg)
     params func_decl.fn_params;
   ignore (compile_stmt env ib body);
+  IrBuilder.finish ib;
 
   func_decl

@@ -11,5 +11,16 @@ fn main() {
   let w = x % y;
   print z;
   print w;
+
+  // Power of twos
+  print(x / 8);
+  print(x % 8);
+
+  // Algebraic identities
+  print(x / 1);
+  print(x / x);
+  print(x % 1);
+  print(x % x);
+
   return 0;
 }

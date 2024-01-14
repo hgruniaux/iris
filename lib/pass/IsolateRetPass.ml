@@ -9,13 +9,12 @@ let is_ret term =
       | Iinst_retv v -> (true, Some v)
       | _ -> (false, None))
 
-(** This pass moves all instances of ret or retv instructions to a same and
+(** This pass moves all occurrences of ret or retv instructions to a same and
     unique basic block.
 
     The SimplifyCFG pass should be called after as this pass may mess up the CFG. *)
 let pass_fn fn =
-  let ib = IrBuilder.create_for_fn fn in
-  let ret_bb = IrBuilder.mk_bb ib in
+  let ret_bb = Ir.mk_bb fn in
 
   let predecessors = ref [] in
   Label.Map.iter
@@ -29,7 +28,10 @@ let pass_fn fn =
             set_term bb (Iinst_jmp ret_bb.b_label))
     fn.fn_blocks;
 
-  if !predecessors = [] then set_term ret_bb Iinst_ret
-  else
-    let ret_value = insert_phi ret_bb !predecessors in
-    set_term ret_bb (Iinst_retv (Iop_reg ret_value))
+  (if !predecessors = [] then set_term ret_bb Iinst_ret
+   else
+     let ret_value = insert_phi ret_bb !predecessors in
+     set_term ret_bb (Iinst_retv (Iop_reg ret_value)));
+
+  (* As a simplification, we suppose that this pass always modify the code. *)
+  true

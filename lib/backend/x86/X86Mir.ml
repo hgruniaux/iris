@@ -301,64 +301,10 @@ let mk_mov r1 r2 =
     [ Mir.Oreg r1; Mir.Oreg r2 ]
     ~defs:[ r1 ] ~uses:[ r2 ] ~is_mov:true
 
-let mk_movi r1 imm =
-  Mir.mk_inst "mov" [ Mir.Oreg r1; Mir.Oimm imm ] ~defs:[ r1 ] ~uses:[]
-
-let mk_mov_constant r1 cst =
-  Mir.mk_inst "mov" [ Mir.Oreg r1; Mir.Oconst cst ] ~defs:[ r1 ] ~uses:[]
-
 let mk_mov_operand r1 operand =
   match operand with
   | Mir.Oreg r2 -> mk_mov r1 r2
   | _ -> Mir.mk_inst "mov" [ Mir.Oreg r1; operand ] ~defs:[ r1 ] ~uses:[]
-
-let mk_load r1 r2 =
-  [ Mir.mk_inst "load" [ Mir.Oreg r1; Mir.Oreg r2 ] ~defs:[ r1 ] ~uses:[ r2 ] ]
-
-let mk_store r1 r2 =
-  [ Mir.mk_inst "store" [ Mir.Oreg r1; Mir.Oreg r2 ] ~defs:[] ~uses:[ r1; r2 ] ]
-
-let mk_binop_util kind r1 r2 r3 =
-  let r2, insts =
-    match r2 with
-    | Ir.Iop_reg r -> (r, [])
-    | Ir.Iop_imm imm ->
-        let tmp = Mir.Reg.fresh () in
-        (tmp, [ mk_movi tmp imm ])
-  in
-  let r3, insts =
-    match r3 with
-    | Ir.Iop_reg r -> (r, insts)
-    | Ir.Iop_imm imm ->
-        let tmp = Mir.Reg.fresh () in
-        (tmp, mk_movi tmp imm :: insts)
-  in
-  insts
-  @ [
-      mk_mov r1 r2;
-      Mir.mk_inst kind
-        [ Mir.Oreg r1; Mir.Oreg r3 ]
-        ~defs:[ r1 ] ~uses:[ r1; r3 ];
-    ]
-
-let mk_binop_imm_util kind r1 r2 imm =
-  let r2, insts =
-    match r2 with
-    | Ir.Iop_reg r -> (r, [])
-    | Ir.Iop_imm imm ->
-        let tmp = Mir.Reg.fresh () in
-        (tmp, [ mk_movi tmp imm ])
-  in
-  insts
-  @ [
-      mk_mov r1 r2;
-      Mir.mk_inst kind [ Mir.Oreg r1; Mir.Oimm imm ] ~defs:[ r1 ] ~uses:[ r1 ];
-    ]
-
-let mk_add r1 r2 r3 = mk_binop_util "add" r1 r2 r3
-let mk_addi r1 r2 imm = mk_binop_imm_util "add" r1 r2 imm
-let mk_sub r1 r2 r3 = mk_binop_util "sub" r1 r2 r3
-let mk_subi r1 r2 imm = mk_binop_imm_util "sub" r1 r2 imm
 
 let mk_push r1 =
   Mir.mk_inst "push" [ Oreg r1 ] ~defs:[ X86Regs.esp ] ~uses:[ X86Regs.esp; r1 ]
@@ -369,4 +315,6 @@ let mk_pop r1 =
 let mk_pop_many arch count =
   (* TODO: fix item size * count *)
   ignore arch;
-  mk_subi X86Regs.esp (Ir.Iop_reg X86Regs.esp) (Z.of_int count)
+  let insts = ref [] in
+  insert_add insts X86Regs.esp (Ir.Iop_reg X86Regs.esp) (Ir.Iop_imm (Z.of_int count));
+  List.rev !insts

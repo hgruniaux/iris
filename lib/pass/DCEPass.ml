@@ -1,21 +1,75 @@
 open Ir
 
-(** This pass removes dead code instructions. That is, all instructions that
-    have no side effects and that are not used in the program are removed. *)
+(** This pass removes dead instructions if possible.
+
+    All instructions that have no side effects and that are not used in
+    the program are removed. *)
 let pass_fn fn =
-  let changed = ref true in
-  while !changed do
-    let marked_insts = ref [] in
+  let used_names = Hashtbl.create 17 in
 
-    Label.Map.iter
-      (fun _ bb ->
-        iter_insts
+  (*
+    We use a kind of Mark & Sweep algorithm:
+      - We first iterate all the instruction to mark the used ones.
+      - Then, we delete all instructions that were not marked and that
+        have no side effects.
+      - We eventually repeat the process, because removing one instruction
+        may render other instructions dead.
+  *)
+  let mark_reg r = Hashtbl.add used_names r true in
+  let mark_operand o = match o with Iop_reg r -> mark_reg r | _ -> () in
+
+  (* Mark used instructions. *)
+  Label.Map.iter
+    (fun _ bb ->
+      iter_insts
+        (fun inst ->
+          match inst.i_kind with
+          | Iinst_alloca _ | Iinst_loadi _ | Iinst_cst _ -> ()
+          | Iinst_mov r | Iinst_load r -> mark_reg r
+          | Iinst_store (r, o) ->
+              mark_reg r;
+              mark_operand o
+          | Iinst_binop (_, o1, o2) | Iinst_cmp (_, o1, o2) ->
+              mark_operand o1;
+              mark_operand o2
+          | Iinst_unop (_, o) | Iinst_jmpc (o, _, _) | Iinst_retv o ->
+              mark_operand o
+          | Iinst_call (_, args) -> List.iter mark_operand args
+          | Iinst_phi args -> List.iter (fun (o, _) -> mark_operand o) args
+          | Iinst_jmp _ | Iinst_ret | Iinst_unreachable -> ())
+        bb)
+    fn.fn_blocks;
+
+  let removed_insts = ref 0 in
+
+  (* Then sweep unused instructions that have no side effects. *)
+  Label.Map.iter
+    (fun _ bb ->
+      (* Sweep PHI instructions (easy, they can not have side effects). *)
+      bb.b_phi_insts <-
+        List.filter
           (fun inst ->
-            if inst.i_uses = [] && not (has_sideeffect inst) then
-              marked_insts := inst :: !marked_insts)
-          bb)
-      fn.fn_blocks;
+            let keep = Hashtbl.mem used_names inst.i_name in
+            if not keep then (
+              incr removed_insts;
+              Hashtbl.remove fn.fn_symbol_table inst.i_name);
+            keep)
+          bb.b_phi_insts;
 
-    changed := !marked_insts <> [];
-    List.iter (fun inst -> remove inst) !marked_insts
-  done
+      (* Sweep unused instructions but keeping the ones with side effects. *)
+      bb.b_insts <-
+        List.filter
+          (fun inst ->
+            let keep =
+              has_sideeffect inst || Hashtbl.mem used_names inst.i_name
+            in
+            if not keep then (
+              incr removed_insts;
+              Hashtbl.remove fn.fn_symbol_table inst.i_name);
+            keep)
+          bb.b_insts)
+    (* Terminator instructions have side effects by definition. They can not be removed. *)
+    fn.fn_blocks;
+
+  (* The code has changed if we have removed at least one instruction. *)
+  !removed_insts > 0

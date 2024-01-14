@@ -10,7 +10,7 @@
 %token PLUS MINUS STAR SLASH PERCENT LESS_LESS GREATER_GREATER
 %token AMP AMP_AMP PIPE PIPE_PIPE CARET EQ PRINT
 %token FN LET RETURN IF ELSE WHILE LOOP BREAK CONTINUE GOTO TRUE FALSE NEW DELETE
-%token EQ_EQ EXCLAIM_EQ LESS LESS_EQ GREATER GREATER_EQ
+%token EQ_EQ EXCLAIM_EQ LESS LESS_EQ GREATER GREATER_EQ EXCLAIM
 
 %nonassoc THEN ELSE
 %left PIPE_PIPE
@@ -47,7 +47,8 @@ expr:
 | LPAR e=expr RPAR { e }
 | NEW s=INTEGER { Enew s }
 | l=expr o=binop r=expr { Ebinop (o, l, r) }
-| MINUS r=expr %prec NEG { Eunop (Iunop_neg, r) }
+| MINUS r=expr %prec NEG { Eunop (Uneg, r) }
+| EXCLAIM r=expr %prec NEG { Eunop (Unot, r) }
 | i=IDENT LPAR args=separated_list(COMMA, expr) RPAR { Ecall (i, args) }
 
 stmt:

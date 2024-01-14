@@ -27,7 +27,6 @@ let instsel_inst cc_info inst ~is_x64 =
   | Iinst_alloca _ -> failwith "TODO: instsel x86 alloca"
   | Iinst_load _ -> failwith "TODO: instsel x86 load"
   | Iinst_store _ -> failwith "TODO: instsel x86 store"
-  | Iinst_extract_value _ -> failwith "TODO: instsel x86 extract value"
   | Iinst_binop (op, r2, r3) -> (
       match op with
       | Ibinop_add -> insert_add insts r1 r2 r3

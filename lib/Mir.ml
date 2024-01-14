@@ -100,7 +100,7 @@ let mk_stack_load output_reg stack_idx =
     i_defs = Reg.Set.singleton output_reg;
     i_uses = Reg.Set.empty;
     i_operands = [ Oreg output_reg; Oframe stack_idx ];
-    i_is_mov = false;
+    i_is_mov = true;
   }
 
 let mk_stack_store stack_idx input_reg =
@@ -109,7 +109,7 @@ let mk_stack_store stack_idx input_reg =
     i_defs = Reg.Set.empty;
     i_uses = Reg.Set.singleton input_reg;
     i_operands = [ Oframe stack_idx; Oreg input_reg ];
-    i_is_mov = false;
+    i_is_mov = true;
   }
 
 (** Collects all pseudo registers used in the given [bb]. *)

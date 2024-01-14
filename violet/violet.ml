@@ -7,14 +7,8 @@ let () = Printexc.record_backtrace true
 let usage = "usage: violet [options] file.v"
 let parse_only = ref false
 let arch = ref Backend.Arch_x64
-let dump_ir = ref false
-let dump_ir_dot = ref false
 let dump_opt_ir = ref false
 let dump_opt_ir_dot = ref false
-let dump_mir = ref false
-let dump_liveinfo = ref false
-let dump_interf = ref false
-let dump_reg_alloc = ref false
 
 let set_arch arch_name =
   arch :=
@@ -31,9 +25,9 @@ let spec =
       ( "--arch",
         Arg.Symbol ([ "x86"; "x86-64"; "x64"; "cpulm" ], set_arch),
         "\tselects the target architecture" );
-      ("--dump-ir", Arg.Set dump_ir, "\tdumps generated IR");
+      ("--dump-ir", Arg.Set PassManager.dump_ir, "\tdumps generated IR");
       ( "--dump-ir-dot",
-        Arg.Set dump_ir_dot,
+        Arg.Set PassManager.dump_ir_dot,
         "\tdumps generated IR in Graphviz DOT format" );
       ( "--dump-opt-ir",
         Arg.Set dump_opt_ir,
@@ -41,15 +35,15 @@ let spec =
       ( "--dump-opt-ir-dot",
         Arg.Set dump_opt_ir_dot,
         "\tdumps generated IR after optimizations in Graphviz DOT format" );
-      ("--dump-mir", Arg.Set dump_mir, "\tdumps generated machine MIR");
+      ("--dump-mir", Arg.Set PassManager.dump_mir, "\tdumps generated machine MIR");
       ( "--dump-liveinfo",
-        Arg.Set dump_liveinfo,
+        Arg.Set PassManager.dump_liveinfo,
         "\tdumps the liveness analysis result" );
       ( "--dump-interf",
-        Arg.Set dump_interf,
+        Arg.Set PassManager.dump_interf,
         "\tdumps the computed interference graph in Graphviz DOT format" );
       ( "--dump-reg-alloc",
-        Arg.Set dump_reg_alloc,
+        Arg.Set PassManager.dump_reg_alloc,
         "\tdumps the register allocation result" );
     ]
 

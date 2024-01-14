@@ -44,7 +44,8 @@ and binop =
   | Bge
 
 and unop =
-  | Iunop_neg
+  | Uneg
+  | Unot
 
 and function_decl = string * string list * stmt
 

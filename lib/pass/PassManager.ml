@@ -4,6 +4,7 @@ let dump_ir_dot = ref false
 let dump_liveinfo = ref false
 let dump_interf = ref false
 let dump_reg_alloc = ref false
+let dump_mir = ref false
 let optimize = ref true
 
 type analysis_manager = {
@@ -16,7 +17,7 @@ type pass_manager = {
   pm_arch : Backend.arch;  (** The target backend CPU architecture. *)
   pm_am : analysis_manager;
       (** Manager that stores and handles all analysis information. *)
-  pm_ir_fn_passes : (Ir.fn -> unit) list;
+  pm_ir_fn_passes : (Ir.fn -> bool) list;
       (** All passes that are run on IR functions. *)
   pm_mir_fn_passes : (Mir.fn -> unit) list;
       (** All passes that are run on MIR functions. *)
@@ -47,16 +48,47 @@ let pass_with_interf am pass fn = pass (Option.get am.am_interf) fn
     register allocation information as first argument. *)
 let pass_with_regalloc am pass fn = pass (Option.get am.am_regalloc) fn
 
-(** Call the given [passes] on the given [fn]. *)
-let chain_pass passes fn = List.iter (fun pass -> pass fn) passes
+(** Runs the [passes] on the given [fn].
 
-(** Creates a conditional pass that only call [pass] on [fn]
-    if the function [f] returns true. *)
-let conditional_pass f pass fn = if f () then pass fn else ()
+    This meta-pass returns true if at least on pass of [passes] has
+    returned true. So, true is returned iff the code has changed. *)
+let chain passes fn =
+  List.fold_left (fun changed pass -> pass fn || changed) false passes
 
-(** Same as [conditional_pass], but takes a boolean reference
-    instead of a function. *)
-let ref_conditional_pass r pass fn = if !r then pass fn else ()
+(** Repeat a given [pass] until a fixpoint is reached. In other terms,
+    [pass] is executed until it returns true (code changed).
+
+    This can be composed with [chain] to create a chain of passes that
+    are run until a fixpoint is reached.
+
+    This meta-pass returns true if at least one call to [pass] has
+    changed the code; otherwise false is returned. So, true is returned
+    iff the code has changed. *)
+let repeat_until_fixpoint pass fn =
+  let changed = ref false in
+  while pass fn do
+    changed := true
+  done;
+  !changed
+
+(** Creates a conditional pass that only call [pass] on [fn] if the function
+    [f] returns true. *)
+let conditional_pass f pass fn = if f () then pass fn else false
+
+(** Same as [conditional_pass], but takes a boolean reference instead
+    of a function. *)
+let ref_conditional_pass r pass fn = if !r then pass fn else false
+
+(** Act as a pass that does nothing. It completly ignore the given [pass].
+
+    This is usefull for debugging and experimenting purposes to easily
+    disable a pass.
+
+    This meta-pass always returns false as it never changes the code. *)
+let ignore_pass pass fn =
+  ignore pass;
+  ignore fn;
+  false
 
 (** Creates an analysis manager. *)
 let create_am () = { am_liveinfo = None; am_interf = None; am_regalloc = None }
@@ -75,18 +107,31 @@ let create arch =
     pm_ir_fn_passes =
       [
         ref_conditional_pass optimize
-          (chain_pass
+          (chain
              [
                SimplifyCFGPass.pass_fn;
-               CopyPropagationPass.pass_fn;
-               InstCombinePass.pass_fn;
-               DCEPass.pass_fn;
                IsolateRetPass.pass_fn;
+               repeat_until_fixpoint
+                 (chain
+                    [
+                      SimplifyCFGPass.pass_fn;
+                      CopyPropagationPass.pass_fn;
+                      InstCombinePass.pass_fn;
+                      repeat_until_fixpoint DCEPass.pass_fn;
+                    ]);
              ]);
-        ref_conditional_pass dump_ir IrPP.dump_ir;
-        ref_conditional_pass dump_ir_dot IrPP.dump_dot;
+        ref_conditional_pass dump_ir (fun fn ->
+            IrPP.dump_ir fn;
+            false);
+        ref_conditional_pass dump_ir_dot (fun fn ->
+            IrPP.dump_dot fn;
+            false);
         (* BEGIN REQUIRED *)
+        VerifyPass.pass_fn;
         LowerPhiPass.pass_fn;
+        ref_conditional_pass dump_ir (fun fn ->
+            IrPP.dump_ir fn;
+            false);
         (* END REQUIRED *)
       ];
     pm_mir_fn_passes =
@@ -94,6 +139,7 @@ let create arch =
         (* BEGIN REQUIRED *)
         LoadParamsPass.pass_fn arch;
         LowerCallsPass.pass_fn arch;
+        (* (fun fn -> Mir.dump_mir [fn]); *)
         reg_alloc_pass am arch;
         pass_with_regalloc am (NaiveSpillerPass.pass_fn X86Regs.spill_regs);
         pass_with_regalloc am RewriteVRegsPass.pass_fn;
@@ -107,7 +153,7 @@ let create arch =
     returned. The MIR function is ready for code emitting. *)
 let run pm ir_fn =
   (* Run IR passes *)
-  List.iter (fun pass -> pass ir_fn) pm.pm_ir_fn_passes;
+  List.iter (fun pass -> ignore (pass ir_fn)) pm.pm_ir_fn_passes;
 
   (* Instruction selection, conversion IR -> MIR *)
   let mir_fn = Backend.instsel_fn pm.pm_arch ir_fn in

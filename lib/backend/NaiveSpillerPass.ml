@@ -1,11 +1,10 @@
 open Mir
 
-
 let handle_inst tmp_regs colors inst =
   let available_tmp_regs = ref tmp_regs in
   let load_insts = ref [] in
   let store_insts = ref [] in
-  let mapping = Hashtbl.create 3 in
+  let mapping = Hashtbl.create 2 in
 
   let choose_tmp_reg () =
     match !available_tmp_regs with
@@ -38,7 +37,9 @@ let handle_inst tmp_regs colors inst =
         match Reg.Map.find_opt use colors with
         | Some (RegAlloc.Spilled n) -> (
             match Hashtbl.find_opt mapping n with
-            | Some r -> r
+            | Some r ->
+                store_insts := Mir.mk_stack_store n r :: !load_insts;
+                r
             | None ->
                 let tmp_reg = choose_tmp_reg () in
                 store_insts := Mir.mk_stack_store n tmp_reg :: !load_insts;

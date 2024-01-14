@@ -63,7 +63,7 @@ let x86_args_regs_count = List.length x86_args_regs
 
 (** The caller saved (non volatile) registers of the x86-64 architecture. *)
 let x64_caller_saved =
-  Mir.Reg.Set.of_list [ rax; rcx; rdx; rdi; rsi; r8; r9; r10; r11 ]
+  Mir.Reg.Set.of_list [ rax; rcx; rdx; rdi; rsi; r8; r9 ]
 
 (** The callee saved ( volatile) registers of the x86-64 architecture. *)
 let x64_callee_saved = Mir.Reg.Set.of_list [ rbx; rsp; rbp; r12; r13; r14; r15 ]

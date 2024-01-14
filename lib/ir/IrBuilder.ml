@@ -27,16 +27,16 @@ let create_for_fn fn =
     continue_labels = Stack.create ();
   }
 
+let finish ib =
+  let fn = Option.get ib.cur_func_decl in
+  Label.Map.iter (fun _ bb -> bb.b_insts <- List.rev bb.b_insts) fn.fn_blocks
+
 (** Adds the instruction [inst] that writes to [reg] into the current
     basic block of the given IR Builder [ib]. *)
 let add_inst ib reg inst_kind =
   let bb = Option.get ib.cur_bb in
   let inst = Ir.mk_inst bb reg inst_kind in
-  (match bb.b_last_inst with
-  | None ->
-      bb.b_first_inst <- Some inst;
-      bb.b_last_inst <- Some inst
-  | Some last_inst -> insert_after last_inst inst);
+  bb.b_insts <- inst :: bb.b_insts;
   reg
 
 let find_inst_kind ib reg =
@@ -66,10 +66,6 @@ let mk_string ib str = mk_const ib (Ir.get_string_constant ib.ctx str)
 (** Same as [mk_string] but add an explicit final NUL character to generate
           NUL-terminated string. *)
 let mk_zstring ib str = mk_string ib (str ^ "\x00")
-
-let mk_extract_value ib cst idx =
-  let rout = Reg.fresh () in
-  add_inst ib rout (Iinst_extract_value (cst, idx))
 
 let mk_mov ib r1 =
   let rout = Reg.fresh () in
@@ -224,7 +220,9 @@ let set_bb ib bb = ib.cur_bb <- Some bb
 
 let mk_bb ib =
   let fn = Option.get ib.cur_func_decl in
-  Ir.mk_bb fn
+  let bb = Ir.mk_bb fn in
+  set_term bb Iinst_unreachable;
+  bb
 
 let mk_fn ib name arity =
   let fn =
@@ -276,19 +274,16 @@ let mk_if_expr ib cond then_gf else_gf =
 
   (* End *)
   set_bb ib exit_bb;
-  let rout = Reg.fresh () in
-  add_inst ib rout
-    (Iinst_phi
-       [
-         (Iop_reg then_value, then_bb.b_label);
-         (Iop_reg else_value, else_bb.b_label);
-       ])
+  insert_phi exit_bb
+    [
+      (Iop_reg then_value, then_bb.b_label);
+      (Iop_reg else_value, else_bb.b_label);
+    ]
 
 (** Lazy logical AND. *)
 let mk_logical_and ib lhs rhs_gf =
   (* TODO: test mk_logical_and *)
-  let not_lhs = mk_not ib lhs in
-  mk_if_expr ib not_lhs (fun ib -> mk_false ib) rhs_gf
+  mk_if_expr ib lhs rhs_gf (fun ib -> mk_false ib)
 
 (** Lazy logical OR. *)
 let mk_logical_or ib lhs rhs_gf =

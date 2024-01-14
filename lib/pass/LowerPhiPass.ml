@@ -31,11 +31,11 @@ open Ir
 let pass_fn fn =
   Label.Map.iter
     (fun _ bb ->
-      iter_phis
+      List.iter
         (fun phi ->
-          let predecessors =
+          let operands =
             match phi.i_kind with
-            | Iinst_phi predecessors -> predecessors
+            | Iinst_phi operands -> operands
             | _ -> failwith "expected a PHI instruction"
           in
 
@@ -45,20 +45,26 @@ let pass_fn fn =
               let pred = Label.Map.find label fn.fn_blocks in
               let mov_kind =
                 match operand with
-                | Iop_imm i -> Iinst_cst (Ir.get_int_constant fn.fn_ctx i)
+                | Iop_imm i -> Iinst_loadi i
                 | Iop_reg r -> Iinst_mov r
               in
               (* It is important that the move instruction has the same name
                  as the PHI node. *)
               let mov_inst = mk_inst pred phi.i_name mov_kind in
-              insert_at_end pred mov_inst)
-            predecessors;
+              pred.b_insts <- pred.b_insts @ [ mov_inst ])
+            operands;
 
           (* Remove the PHI node from the symbol table so it can
              be GCed later. *)
           Hashtbl.remove fn.fn_symbol_table phi.i_name)
-        bb;
+        bb.b_phi_insts;
 
       (* Remove all PHI nodes. *)
-      bb.b_first_phi <- None)
-    fn.fn_blocks
+      bb.b_phi_insts <- [])
+    fn.fn_blocks;
+
+  (* We are not in SSA form anymore. The symbol table is now meaningless.
+     So we clear it to allow the GC retrieve the removed PHI nodes. *)
+  Hashtbl.clear fn.fn_symbol_table;
+  (* As a simplification, we suppose that this pass always modify the code. *)
+  true

@@ -56,6 +56,7 @@ rule next_token = parse
   | '*' { STAR }
   | '/' { SLASH }
   | '%' { PERCENT }
+  | '!' { EXCLAIM }
   | '&' { AMP }
   | "&&" { AMP_AMP }
   | '^' { CARET }

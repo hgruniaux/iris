@@ -1,4 +1,4 @@
-FLAGS =
+FLAGS = --dump-ir
 
 all:
 	dune build
@@ -9,7 +9,7 @@ violet:
 debug:
 	dune exec _build/default/violet/violet.exe -- test.v --dump-ir --arch x86
 
-test: violet
+test:
 	bash ./test/test.sh "dune exec _build/default/violet/violet.exe"
 
 test_x86:

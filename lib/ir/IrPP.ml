@@ -104,9 +104,6 @@ let pp_instruction ppf inst =
   | Iinst_cst cst -> Format.fprintf ppf "%a = %a" pp_register n pp_constant cst
   | Iinst_loadi cst -> Format.fprintf ppf "%a = %a" pp_register n Z.pp_print cst
   | Iinst_mov r -> Format.fprintf ppf "%a = %a" pp_register n pp_register r
-  | Iinst_extract_value (cst, idx) ->
-      Format.fprintf ppf "%a = extractvalue %a %a" pp_register n pp_constant cst
-        pp_register idx
   | Iinst_load r ->
       Format.fprintf ppf "%a = load %a" pp_register n pp_register r
   | Iinst_store (r, op) ->
