@@ -110,7 +110,7 @@ let create arch =
           (chain
              [
                SimplifyCFGPass.pass_fn;
-               IsolateRetPass.pass_fn;
+               MergeRetPass.pass_fn;
                repeat_until_fixpoint
                  (chain
                     [

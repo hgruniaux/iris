@@ -1,5 +1,17 @@
 open Ir
 
+(** This pass check if the given IR function is well-formed:
+      - all basic blocks must have one terminator
+      - PHI instructions or terminators must not be in the middle of a basic block
+      - the function must be correctly typed
+        - a function returning void can not have a ret with value instruction
+        - adding void and an integer is not valid
+        - etc.
+      - etc.
+
+    Obviously, this pass does  not modify the input IR function. Moreover,
+    the checks are not intended to be exhaustive (there are many others asserts
+    scattered all over the place). *)
 let pass_fn fn =
   Label.Map.iter
     (fun _ bb ->
@@ -21,5 +33,5 @@ let pass_fn fn =
       assert (Option.is_some bb.b_term))
     fn.fn_blocks;
 
-  (* Do not change the code, only verify it. *)
+  (* Does not change the code, only verify it. *)
   false

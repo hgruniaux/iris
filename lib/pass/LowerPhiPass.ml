@@ -1,12 +1,12 @@
 open Ir
 
 (** This pass lowers PHI nodes. After this call, there is no more PHI
-    instructions in the IR code. Also the IR code clearly do not follow
-    SSA form anymore.
+    instructions in the IR code. Also, the IR code clearly does not follow
+    SSA form anymore.
 
-    Lowering a PHI node is quite simple as we don't need to preserve
-    SSA form anymore. The idea is to insert a move instruction at end of
-    each predecessor basic block. So, for example, let consider:
+    Lowering a PHI node is quite simple. The idea is to insert a move
+    instruction at the end of each predecessor basic block.
+    So, for example, let consider:
       L1:
         %1 = ...
         jmp L3
