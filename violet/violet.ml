@@ -35,7 +35,9 @@ let spec =
       ( "--dump-opt-ir-dot",
         Arg.Set dump_opt_ir_dot,
         "\tdumps generated IR after optimizations in Graphviz DOT format" );
-      ("--dump-mir", Arg.Set PassManager.dump_mir, "\tdumps generated machine MIR");
+      ( "--dump-mir",
+        Arg.Set PassManager.dump_mir,
+        "\tdumps generated machine MIR" );
       ( "--dump-liveinfo",
         Arg.Set PassManager.dump_liveinfo,
         "\tdumps the liveness analysis result" );
@@ -65,11 +67,11 @@ let report (b, e) =
   let fc = b.pos_cnum - b.pos_bol + 1 in
   let lc = e.pos_cnum - b.pos_bol + 1 in
   eprintf "File \"%s\", line %d, characters %d-%d:\n" file l fc lc
-
+(*
 let compile_fn arch ir_fn =
   let pm = PassManager.create arch in
-  let mir_fn = PassManager.run pm ir_fn in
-  mir_fn
+  let mir_fn = PassManager.run_on_fn pm ir_fn in
+  mir_fn *)
 
 let () =
   let c = open_in file in
@@ -81,9 +83,11 @@ let () =
 
     let ctx = Ir.mk_ctx () in
     let ib = IrBuilder.create ctx in
-    let ir_funcs = List.map (Compile.compile_func ib) f in
-    let compiled_funcs = List.map (fun fn -> compile_fn !arch fn) ir_funcs in
-    Backend.emit_ctx !arch Format.std_formatter ctx compiled_funcs
+    let _ = List.map (Compile.compile_func ib) f in
+    let pm = PassManager.create !arch in
+    PassManager.run_on_ctx pm ctx
+    (* let compiled_funcs = List.map (fun fn -> compile_fn !arch fn) ir_funcs in
+       Backend.emit_ctx !arch Format.std_formatter ctx compiled_funcs *)
   with
   | Lexing_error msg ->
       let range_start = Lexing.lexeme_start_p lb in

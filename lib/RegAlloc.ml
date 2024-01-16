@@ -3,7 +3,7 @@
   We use the George and Appel algorithm (Iterated Reg Coalescing, 1996).
 *)
 
-open Mir
+open Mr
 open Interference
 
 (* Some module alias for easier typing. *)
@@ -281,7 +281,8 @@ let dump_colors colors =
       if Reg.is_pseudo reg then
         match color with
         | Reg color ->
-            Format.printf "%a -> %a@." IrPP.pp_register reg IrPP.pp_register
-              color
-        | Spilled n -> Format.printf "%a -> Spilled %d@." IrPP.pp_register reg n)
+            Format.printf "%a -> %a@." PPrintIr.pp_register reg
+              PPrintIr.pp_register color
+        | Spilled n ->
+            Format.printf "%a -> Spilled %d@." PPrintIr.pp_register reg n)
     colors

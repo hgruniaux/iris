@@ -24,7 +24,6 @@ let instsel_inst cc_info inst ~is_x64 =
       | None -> assert false)
   | Iinst_loadi imm -> insert_mov insts r1 (Iop_imm imm)
   | Iinst_mov r2 -> insert_mov_regs insts r1 r2
-  | Iinst_alloca _ -> failwith "TODO: instsel x86 alloca"
   | Iinst_load _ -> failwith "TODO: instsel x86 load"
   | Iinst_store _ -> failwith "TODO: instsel x86 store"
   | Iinst_binop (op, r2, r3) -> (
@@ -61,17 +60,23 @@ let instsel_inst cc_info inst ~is_x64 =
       | Icmp_sge -> insert_cmp_util insts "ge" r1 r2 r3)
   | Iinst_call (fname, args) ->
       insert_call insts cc_info r1 fname (List.map from_ir_operand args)
-  | Iinst_phi _ -> failwith "PHI instructions should have been lowered"
-  (* Terminator instructions. *)
-  | Iinst_ret -> insert_ret insts cc_info
-  | Iinst_retv value -> insert_ret_value insts cc_info value
-  | Iinst_jmp l -> insert_jmp insts l
-  | Iinst_jmpc (r, tl, el) -> insert_jmp_conditional insts r tl el
-  | Iinst_unreachable -> ());
+  | Iinst_phi _ -> failwith "PHI instructions should have been lowered");
+  List.rev !insts
+
+let instsel_term cc_info term =
+  let insts = ref [] in
+  (match term.i_kind with
+  | Iterm_ret -> insert_ret insts cc_info
+  | Iterm_retv value -> insert_ret_value insts cc_info value
+  | Iterm_jmp l -> insert_jmp insts l
+  | Iterm_jmpc (r, tl, el) -> insert_jmp_conditional insts r tl el
+  | Iterm_unreachable -> ());
   List.rev !insts
 
 let instsel_bb cc_info bb ~is_x64 =
-  InstselCommon.instsel_bb bb (instsel_inst cc_info ~is_x64)
+  InstselCommon.instsel_bb bb
+    (instsel_inst cc_info ~is_x64)
+    (instsel_term cc_info)
 
 (** Converts the given IR function to its MIR counterpart by doing x86 instruction selection. *)
 let instsel_fn ~is_x64 fn =

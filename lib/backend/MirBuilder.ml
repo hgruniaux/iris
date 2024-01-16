@@ -1,5 +1,5 @@
 open Backend
-open Mir
+open Mr
 
 let mk_mov arch target source =
   match arch with

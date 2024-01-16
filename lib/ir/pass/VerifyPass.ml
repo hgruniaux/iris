@@ -12,7 +12,7 @@ open Ir
     Obviously, this pass does  not modify the input IR function. Moreover,
     the checks are not intended to be exhaustive (there are many others asserts
     scattered all over the place). *)
-let pass_fn fn =
+let pass_fn _ fn =
   Label.Map.iter
     (fun _ bb ->
       (* The list b_phi_insts must only have PHI instructions. *)
@@ -26,7 +26,7 @@ let pass_fn fn =
       List.iter
         (fun inst ->
           let kind = inst.i_kind in
-          assert ((not (is_term kind)) && not (is_phi kind)))
+          assert (not (is_phi kind)))
         bb.b_insts;
 
       (* All basic blocks must have a terminator instruction. *)

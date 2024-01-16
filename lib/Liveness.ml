@@ -1,5 +1,5 @@
 (* This module contains the algorithms to compute the liveness information of
- * registers in a MIR function declaration/basic blocks. Because the MIR
+ * registers in a Mr function declaration/basic blocks. Because the Mr
  * representation stores uses and defs sets, the Liveness analysis is target
  * independent.
 
@@ -11,17 +11,17 @@
  * liveness information can be quickly determined from the boundary information
  * as each instruction only has a single successor and predecessor. *)
 
-open Mir
+open Mr
 
 type inst_liveinfo = { inst_live_in : Reg.set; inst_live_out : Reg.set }
 
 type bb_lifeinfo = {
   mutable bb_live_in : Reg.set;
   mutable bb_live_out : Reg.set;
-  mutable bb_inst_liveinfo : (inst, inst_liveinfo) Hashtbl.t;
+  mutable bb_inst_liveinfo : (minst, inst_liveinfo) Hashtbl.t;
 }
 
-type t = (Mir.bb, bb_lifeinfo) Hashtbl.t
+type t = (Mr.mbb, bb_lifeinfo) Hashtbl.t
 
 (** Returns the variables alive at input of the basic block [bb]
      given the variables alive [live_out] at output. *)
@@ -32,7 +32,7 @@ let live_in_of_bb bb live_out =
     | [] -> live_in
     | inst :: remaining ->
         let live_out = Reg.Set.union live_in live_out in
-        let def, use = (inst.i_defs, inst.i_uses) in
+        let def, use = (inst.mi_defs, inst.mi_uses) in
         let live_in = Reg.Set.union use (Reg.Set.diff live_out def) in
         let inst_liveinfo =
           { inst_live_in = live_in; inst_live_out = live_out }
@@ -40,7 +40,7 @@ let live_in_of_bb bb live_out =
         Hashtbl.add insts_liveinfo inst inst_liveinfo;
         loop live_in live_out remaining
   in
-  let live_in = loop Reg.Set.empty live_out (List.rev bb.bb_insts) in
+  let live_in = loop Reg.Set.empty live_out (List.rev bb.mbb_insts) in
   (live_in, insts_liveinfo)
 
 (** Computes liveness info for the given function definition [funcdef]. *)
@@ -69,16 +69,16 @@ let compute fn =
   (* Populate the worklist by adding basic blocks from the exit points to the entry bb. *)
   let visited_bb_labels = ref Label.Set.empty in
   let rec dfs bb =
-    if not (Label.Set.mem bb.bb_label !visited_bb_labels) then (
-      visited_bb_labels := Label.Set.add bb.bb_label !visited_bb_labels;
+    if not (Label.Set.mem bb.mbb_label !visited_bb_labels) then (
+      visited_bb_labels := Label.Set.add bb.mbb_label !visited_bb_labels;
       Label.Set.iter
         (fun label ->
-          let bb = Label.Map.find label fn.fn_blocks in
+          let bb = Label.Map.find label fn.mfn_blocks in
           dfs bb)
-        bb.bb_successors;
-      Queue.add bb.bb_label worklist)
+        bb.mbb_successors;
+      Queue.add bb.mbb_label worklist)
   in
-  let entry_bb = Label.Map.find fn.fn_entry fn.fn_blocks in
+  let entry_bb = Label.Map.find fn.mfn_entry fn.mfn_blocks in
   dfs entry_bb;
 
   (* We expected that there is no more trivially unreachable
@@ -87,7 +87,7 @@ let compute fn =
   (* Loop until worklist is not empty. *)
   while not (Queue.is_empty worklist) do
     let bb_label = Queue.take worklist in
-    let bb = Label.Map.find bb_label fn.fn_blocks in
+    let bb = Label.Map.find bb_label fn.mfn_blocks in
 
     let bb_liveinfo = liveinfo_of bb in
     let old_live_in = bb_liveinfo.bb_live_in in
@@ -97,9 +97,9 @@ let compute fn =
     let live_out =
       Label.Set.fold
         (fun label succs ->
-          let bb = Label.Map.find label fn.fn_blocks in
+          let bb = Label.Map.find label fn.mfn_blocks in
           Reg.Set.union succs (liveinfo_of bb).bb_live_in)
-        bb.bb_successors Reg.Set.empty
+        bb.mbb_successors Reg.Set.empty
     in
 
     (* Then compute basic block's live_in and per instruction liveness info. *)
@@ -113,13 +113,13 @@ let compute fn =
     (* If live_in changed, then we need to update all the predecessors. *)
     if not (Reg.Set.equal live_in old_live_in) then
       (* Add predecessors of bb to worklist. *)
-      Label.Set.iter (fun l -> Queue.add l worklist) bb.bb_predecessors
+      Label.Set.iter (fun l -> Queue.add l worklist) bb.mbb_predecessors
   done;
 
   liveinfo
 
 let dump_liveinfo fn liveinfo =
-  let pp_registerset = IrPP.pp_registerset in
+  let pp_registerset = PPrintIr.pp_registerset in
   let cur_bb_liveinfo = ref None in
   let pp_inst_extra ppf inst =
     let inst_liveinfo =
@@ -134,4 +134,4 @@ let dump_liveinfo fn liveinfo =
     Format.fprintf ppf "; in = {%a}, out = {%a}" pp_registerset
       bb_liveinfo.bb_live_in pp_registerset bb_liveinfo.bb_live_out
   in
-  Format.printf "%a@." (Mir.pp_fn pp_bb_extra pp_inst_extra) fn
+  Format.printf "%a@." (PPrintMr.pp_fn pp_bb_extra pp_inst_extra) fn

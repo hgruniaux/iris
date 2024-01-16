@@ -83,15 +83,15 @@ and compile_stmt env ib s =
   | Slabel (name, stmt) ->
       let bb = IrBuilder.mk_bb ib in
       Hashtbl.add env.labels name bb.b_label;
-      IrBuilder.set_terminator ib (Ir.Iinst_jmp bb.b_label);
+      IrBuilder.set_term ib (Ir.Iterm_jmp bb.b_label);
       IrBuilder.set_bb ib bb;
       compile_stmt env ib stmt
   | Sreturn e ->
       (match e with
-      | None -> IrBuilder.set_terminator ib Ir.Iinst_ret
+      | None -> IrBuilder.set_term ib Ir.Iterm_ret
       | Some e ->
           let ret_val = compile_expr env ib e in
-          IrBuilder.set_terminator ib (Ir.Iinst_retv (Iop_reg ret_val)));
+          IrBuilder.set_term ib (Ir.Iterm_retv (Iop_reg ret_val)));
       let bb = IrBuilder.mk_bb ib in
       IrBuilder.set_bb ib bb
   | Sbreak -> IrBuilder.mk_break ib
@@ -102,7 +102,7 @@ and compile_stmt env ib s =
   | Sgoto i -> (
       match Hashtbl.find_opt env.labels i with
       | Some l ->
-          IrBuilder.set_terminator ib (Iinst_jmp l);
+          IrBuilder.set_term ib (Iterm_jmp l);
           let bb = IrBuilder.mk_bb ib in
           IrBuilder.set_bb ib bb
       | None -> raise (Error ("Unknown label " ^ i)))
@@ -112,29 +112,29 @@ and compile_stmt env ib s =
       let else_bb = IrBuilder.mk_bb ib in
       let end_bb = IrBuilder.mk_bb ib in
       let cond_val = compile_expr env ib cond in
-      IrBuilder.set_terminator ib
-        (Iinst_jmpc (Iop_reg cond_val, then_bb.b_label, else_bb.b_label));
+      IrBuilder.set_term ib
+        (Iterm_jmpc (Iop_reg cond_val, then_bb.b_label, else_bb.b_label));
       IrBuilder.set_bb ib then_bb;
       compile_stmt env ib then_stmt;
-      IrBuilder.set_terminator ib (Iinst_jmp end_bb.b_label);
+      IrBuilder.set_term ib (Iterm_jmp end_bb.b_label);
       IrBuilder.set_bb ib else_bb;
       compile_stmt env ib else_stmt;
-      IrBuilder.set_terminator ib (Iinst_jmp end_bb.b_label);
+      IrBuilder.set_term ib (Iterm_jmp end_bb.b_label);
       IrBuilder.set_bb ib end_bb
   | Swhile (cond, body) ->
       let cond_bb = IrBuilder.mk_bb ib in
       let loop_bb = IrBuilder.mk_bb ib in
       let end_bb = IrBuilder.mk_bb ib in
-      IrBuilder.set_terminator ib (Iinst_jmp cond_bb.b_label);
+      IrBuilder.set_term ib (Iterm_jmp cond_bb.b_label);
       IrBuilder.set_bb ib cond_bb;
       let cond_val = compile_expr env ib cond in
-      IrBuilder.set_terminator ib
-        (Iinst_jmpc (Iop_reg cond_val, loop_bb.b_label, end_bb.b_label));
+      IrBuilder.set_term ib
+        (Iterm_jmpc (Iop_reg cond_val, loop_bb.b_label, end_bb.b_label));
       IrBuilder.set_bb ib loop_bb;
       IrBuilder.enter_loop ib cond_bb.b_label end_bb.b_label;
       compile_stmt env ib body;
       IrBuilder.exit_loop ib;
-      IrBuilder.set_terminator ib (Iinst_jmp cond_bb.b_label);
+      IrBuilder.set_term ib (Iterm_jmp cond_bb.b_label);
       IrBuilder.set_bb ib end_bb
   | Sloop body -> IrBuilder.mk_loop ib (fun ib -> compile_stmt env ib body)
 

@@ -25,7 +25,7 @@ let x64_cc_info =
   }
 
 let from_ir_operand op =
-  match op with Ir.Iop_reg r -> Mir.Oreg r | Ir.Iop_imm i -> Mir.Oimm i
+  match op with Ir.Iop_reg r -> Mr.Oreg r | Ir.Iop_imm i -> Mr.Oimm i
 
 let reg_of_operand op =
   match op with
@@ -47,36 +47,36 @@ let use_from_operand op = match op with Ir.Iop_reg r -> [ r ] | _ -> []
 
 let insert_mov_regs insts r1 r2 =
   insts :=
-    Mir.mk_inst "mov"
-      [ Mir.Oreg r1; Mir.Oreg r2 ]
+    Mr.mk_inst "mov"
+      [ Mr.Oreg r1; Mr.Oreg r2 ]
       ~defs:[ r1 ] ~uses:[ r2 ] ~is_mov:true
     :: !insts
 
 let insert_mov insts r1 r2 =
   insts :=
-    Mir.mk_inst "mov"
-      [ Mir.Oreg r1; from_ir_operand r2 ]
+    Mr.mk_inst "mov"
+      [ Mr.Oreg r1; from_ir_operand r2 ]
       ~defs:[ r1 ] ~uses:(use_from_operand r2) ~is_mov:true
     :: !insts
 
 let insert_mov_constant insts r1 cst =
   insts :=
-    Mir.mk_inst "mov" [ Mir.Oreg r1; Mir.Oconst cst ] ~defs:[ r1 ] ~uses:[]
+    Mr.mk_inst "mov" [ Mr.Oreg r1; Mr.Oconst cst ] ~defs:[ r1 ] ~uses:[]
     :: !insts
 
 let from_ir_operand_as_reg insts op =
   match op with
   | Ir.Iop_reg r -> r
   | Ir.Iop_imm _ ->
-      let tmp = Mir.Reg.fresh () in
+      let tmp = Mr.Reg.fresh () in
       insert_mov insts tmp op;
       tmp
 
 let insert_binop_util insts kind r1 r2 r3 =
   insert_mov insts r1 r2;
   insts :=
-    Mir.mk_inst kind
-      [ Mir.Oreg r1; from_ir_operand r3 ]
+    Mr.mk_inst kind
+      [ Mr.Oreg r1; from_ir_operand r3 ]
       ~defs:[ r1; X86Regs.eflags ]
       ~uses:(r1 :: use_from_operand r3)
     :: !insts
@@ -91,7 +91,7 @@ let insert_xor insts r1 r2 r3 = insert_binop_util insts "xor" r1 r2 r3
 let insert_unop_util insts kind r1 r2 =
   insert_mov insts r1 r2;
   insts :=
-    Mir.mk_inst kind [ Mir.Oreg r1 ] ~defs:[ r1; X86Regs.eflags ] ~uses:[ r1 ]
+    Mr.mk_inst kind [ Mr.Oreg r1 ] ~defs:[ r1; X86Regs.eflags ] ~uses:[ r1 ]
     :: !insts
 
 let insert_not insts r1 r2 = insert_unop_util insts "not" r1 r2
@@ -102,14 +102,14 @@ let insert_div_util insts kind rout r1 r2 r3 ~is_x64 =
   let r3 = from_ir_operand_as_reg insts r3 in
   insert_mov_regs insts X86Regs.eax r1;
   insts :=
-    Mir.mk_inst
+    Mr.mk_inst
       (if is_x64 then "cqo" else "cdq")
       []
       ~defs:[ X86Regs.eax; X86Regs.edx ]
       ~uses:[ X86Regs.eax ]
     :: !insts;
   insts :=
-    Mir.mk_inst kind [ Mir.Oreg r3 ]
+    Mr.mk_inst kind [ Mr.Oreg r3 ]
       ~defs:[ X86Regs.eax; X86Regs.edx; X86Regs.eflags ]
       ~uses:[ X86Regs.eax; X86Regs.edx; r3 ]
     :: !insts;
@@ -134,15 +134,14 @@ let insert_shift_util insts kind r1 r2 r3 =
     match r3 with
     | Ir.Iop_reg r3 ->
         insert_mov_regs insts cl r3;
-        Mir.Oreg cl
-    | Ir.Iop_imm imm -> Mir.Oimm imm
+        Mr.Oreg cl
+    | Ir.Iop_imm imm -> Mr.Oimm imm
   in
   insts :=
-    Mir.mk_inst kind [ Mir.Oreg r1; r3_op ] ~uses:[ r1; cl ]
+    Mr.mk_inst kind [ Mr.Oreg r1; r3_op ] ~uses:[ r1; cl ]
       ~defs:[ r1; X86Regs.eflags ]
     :: !insts
 
-let insert_sal insts r1 r2 r3 = insert_shift_util insts "sal" r1 r2 r3
 let insert_shl insts r1 r2 r3 = insert_shift_util insts "shl" r1 r2 r3
 let insert_sar insts r1 r2 r3 = insert_shift_util insts "sar" r1 r2 r3
 let insert_shr insts r1 r2 r3 = insert_shift_util insts "shr" r1 r2 r3
@@ -151,32 +150,32 @@ let insert_cmp_util insts cc r1 r2 r3 =
   let r2 = from_ir_operand_as_reg insts r2 in
   (* cmp r2 r3 *)
   insts :=
-    Mir.mk_inst "cmp"
+    Mr.mk_inst "cmp"
       [ Oreg r2; from_ir_operand r3 ]
       ~defs:[ X86Regs.eflags ]
       ~uses:(r2 :: use_from_operand r3)
     :: !insts;
   (* setcc r1 *)
   insts :=
-    Mir.mk_inst ("set" ^ cc) [ Oreg r1 ] ~defs:[ r1 ] ~uses:[ X86Regs.eflags ]
+    Mr.mk_inst ("set" ^ cc) [ Oreg r1 ] ~defs:[ r1 ] ~uses:[ X86Regs.eflags ]
     :: !insts;
   (* and r1, 0xff *)
   insts :=
-    Mir.mk_inst "and"
+    Mr.mk_inst "and"
       [ Oreg r1; Oimm (Z.of_int 0xff) ]
       ~defs:[ r1; X86Regs.eflags ] ~uses:[ r1 ]
     :: !insts
 
 let insert_push insts r1 =
   insts :=
-    Mir.mk_inst "push"
+    Mr.mk_inst "push"
       [ from_ir_operand r1 ]
       ~defs:[ X86Regs.esp ] ~uses:(use_from_operand r1)
     :: !insts
 
 let insert_pop insts r1 =
   insts :=
-    Mir.mk_inst "pop"
+    Mr.mk_inst "pop"
       [ from_ir_operand r1 ]
       ~defs:(X86Regs.esp :: use_from_operand r1)
       ~uses:[]
@@ -184,32 +183,32 @@ let insert_pop insts r1 =
 
 let insert_jmp insts l =
   insts :=
-    Mir.mk_inst "jmp" [ Olabel l ] ~defs:[] ~uses:[ X86Regs.eflags ] :: !insts
+    Mr.mk_inst "jmp" [ Olabel l ] ~defs:[] ~uses:[ X86Regs.eflags ] :: !insts
 
 let insert_jmp_conditional insts cond tl el =
   let cond = from_ir_operand_as_reg insts cond in
   insts :=
-    Mir.mk_inst "cmp" [ Oreg cond; Oimm Z.zero ] ~defs:[ X86Regs.eflags ]
+    Mr.mk_inst "cmp" [ Oreg cond; Oimm Z.zero ] ~defs:[ X86Regs.eflags ]
       ~uses:[ cond ]
     :: !insts;
   insts :=
     (* The else_label and then_label are inversed below because we check
        on zero (or false). *)
-    Mir.mk_inst "jz" [ Olabel el; Olabel tl ] ~defs:[] ~uses:[ X86Regs.eflags ]
+    Mr.mk_inst "jz" [ Olabel el; Olabel tl ] ~defs:[] ~uses:[ X86Regs.eflags ]
     :: !insts
 
 let insert_call insts cc_info r1 callee args =
   insts :=
-    Mir.mk_inst "call"
+    Mr.mk_inst "call"
       (Oreg r1 :: Ofunc callee :: args)
-      ~defs:(Mir.Reg.Set.elements cc_info.cc_caller_saved)
+      ~defs:(Mr.Reg.Set.elements cc_info.cc_caller_saved)
       ~uses:[]
     :: !insts
 
 let insert_ret insts cc_info =
   insts :=
-    Mir.mk_inst "ret" [] ~defs:[]
-      ~uses:(Mir.Reg.Set.elements cc_info.cc_callee_saved)
+    Mr.mk_inst "ret" [] ~defs:[]
+      ~uses:(Mr.Reg.Set.elements cc_info.cc_callee_saved)
     :: !insts
 
 (** Same as insert_ret but takes a value to return.
@@ -232,8 +231,8 @@ let insert_ret_value insts cc_info value =
         [ return_reg ]
   in
   insts :=
-    Mir.mk_inst "ret" [] ~defs:[]
-      ~uses:(return_reg_use @ Mir.Reg.Set.elements cc_info.cc_callee_saved)
+    Mr.mk_inst "ret" [] ~defs:[]
+      ~uses:(return_reg_use @ Mr.Reg.Set.elements cc_info.cc_callee_saved)
     :: !insts
 
 (** Should we use the x86 enter instruction to allocate the function's frame or push and mov?
@@ -256,7 +255,7 @@ let insert_frame_alloc insts fn =
     mov ebp, esp
     sub esp, N
   *)
-  let frame = Option.get fn.Mir.fn_frame in
+  let frame = Option.get fn.Mr.mfn_frame in
   let n = Z.of_int (frame.frame_locals * 8) in
   (* TODO: Allocate stack for local variables *)
   if !use_enter_inst then
@@ -265,7 +264,7 @@ let insert_frame_alloc insts fn =
        and comparison, we support code generation with the enter instruction.
        Ref: https://stackoverflow.com/a/67424971 *)
     insts :=
-      Mir.mk_inst "enter" [ Oimm n; Oimm Z.zero ]
+      Mr.mk_inst "enter" [ Oimm n; Oimm Z.zero ]
         ~defs:[ X86Regs.esp; X86Regs.ebp ]
         ~uses:[ X86Regs.esp ]
       :: !insts
@@ -288,7 +287,7 @@ let insert_frame_dealloc insts fn =
   ignore fn;
   if !use_leave_inst then
     insts :=
-      Mir.mk_inst "leave" []
+      Mr.mk_inst "leave" []
         ~defs:[ X86Regs.esp; X86Regs.ebp ]
         ~uses:[ X86Regs.ebp ]
       :: !insts
@@ -297,20 +296,20 @@ let insert_frame_dealloc insts fn =
     insert_pop insts (Ir.Iop_reg X86Regs.ebp))
 
 let mk_mov r1 r2 =
-  Mir.mk_inst "mov"
-    [ Mir.Oreg r1; Mir.Oreg r2 ]
+  Mr.mk_inst "mov"
+    [ Mr.Oreg r1; Mr.Oreg r2 ]
     ~defs:[ r1 ] ~uses:[ r2 ] ~is_mov:true
 
 let mk_mov_operand r1 operand =
   match operand with
-  | Mir.Oreg r2 -> mk_mov r1 r2
-  | _ -> Mir.mk_inst "mov" [ Mir.Oreg r1; operand ] ~defs:[ r1 ] ~uses:[]
+  | Mr.Oreg r2 -> mk_mov r1 r2
+  | _ -> Mr.mk_inst "mov" [ Mr.Oreg r1; operand ] ~defs:[ r1 ] ~uses:[]
 
 let mk_push r1 =
-  Mir.mk_inst "push" [ Oreg r1 ] ~defs:[ X86Regs.esp ] ~uses:[ X86Regs.esp; r1 ]
+  Mr.mk_inst "push" [ Oreg r1 ] ~defs:[ X86Regs.esp ] ~uses:[ X86Regs.esp; r1 ]
 
 let mk_pop r1 =
-  Mir.mk_inst "pop" [ Oreg r1 ] ~defs:[ X86Regs.esp; r1 ] ~uses:[ X86Regs.esp ]
+  Mr.mk_inst "pop" [ Oreg r1 ] ~defs:[ X86Regs.esp; r1 ] ~uses:[ X86Regs.esp ]
 
 let mk_pop_many arch count =
   (* TODO: fix item size * count *)

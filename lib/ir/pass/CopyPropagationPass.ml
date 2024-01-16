@@ -9,9 +9,14 @@ let map_operands f inst =
     | Iinst_call (fn, args) -> Iinst_call (fn, List.map f args)
     | Iinst_phi operands ->
         Iinst_phi (List.map (fun (o, label) -> (f o, label)) operands)
-    | Iinst_jmpc (cond, tl, te) -> Iinst_jmpc (f cond, tl, te)
-    | Iinst_retv value -> Iinst_retv (f value)
     | _ -> inst.i_kind)
+
+let map_term_operands f inst =
+  inst.i_kind <-
+    (match inst.i_kind with
+    | Iterm_jmpc (cond, tl, te) -> Iterm_jmpc (f cond, tl, te)
+    | Iterm_retv value -> Iterm_retv (f value)
+    | Iterm_jmp _ | Iterm_ret | Iterm_unreachable -> inst.i_kind)
 
 (** This pass propagates moves and constants to later operands.
     So, for example:
@@ -36,9 +41,7 @@ let map_operands f inst =
 
     A dead code elimination pass should be run after this.
 *)
-let pass_fn fn =
-  let changed = ref false in
-
+let pass_fn am fn =
   (* FIXME: should iterate over the dominator tree so we can propagate across basic blocks. *)
   Label.Map.iter
     (fun _ bb ->
@@ -51,29 +54,40 @@ let pass_fn fn =
             match Hashtbl.find_opt ht r with
             | None -> op
             | Some new_op ->
-                changed := true;
+                AnalysisManager.mark_as_dirty am;
                 new_op)
       in
 
-      iter_insts
-        (fun inst ->
-          let r1 = inst.i_name in
-          match inst.i_kind with
-          | Iinst_cst cst -> (
-              match Hashtbl.find_opt fn.fn_ctx.ctx_constants cst with
-              | Some (Icst_int i) -> Hashtbl.add ht r1 (Iop_imm i)
-              | Some (Icst_string _) | None -> ())
-          | Iinst_loadi i -> Hashtbl.add ht r1 (Iop_imm i)
-          | Iinst_mov r2 -> (
-              match Hashtbl.find_opt ht r2 with
-              | None -> Hashtbl.add ht r1 (Iop_reg r2)
-              | Some op -> Hashtbl.add ht r1 op)
-          | Iinst_phi operands when List.compare_length_with operands 1 = 0 ->
-              let o, _ = List.hd operands in
-              Hashtbl.add ht r1 o;
-              map_operands update_operand inst
-          | _ -> map_operands update_operand inst)
-        bb)
+      let handle_inst inst =
+        let r1 = inst.i_name in
+        match inst.i_kind with
+        | Iinst_cst cst -> (
+            match Hashtbl.find_opt fn.fn_ctx.ctx_constants cst with
+            | Some (Icst_int i) -> Hashtbl.add ht r1 (Iop_imm i)
+            | Some (Icst_string _)
+            | Some (Icst_function _)
+            | Some (Icst_struct _)
+            | None ->
+                ())
+        | Iinst_loadi i -> Hashtbl.add ht r1 (Iop_imm i)
+        | Iinst_mov r2 -> (
+            match Hashtbl.find_opt ht r2 with
+            | None -> Hashtbl.add ht r1 (Iop_reg r2)
+            | Some op -> Hashtbl.add ht r1 op)
+        | Iinst_phi operands when List.compare_length_with operands 1 = 0 ->
+            let o, _ = List.hd operands in
+            Hashtbl.add ht r1 o;
+            map_operands update_operand inst
+        | _ -> map_operands update_operand inst
+      in
+
+      List.iter handle_inst bb.b_phi_insts;
+      List.iter handle_inst bb.b_insts;
+
+      match bb.b_term with
+      | None -> failwith "expected a terminator instruction"
+      | Some term -> map_term_operands update_operand term)
     fn.fn_blocks;
 
-  !changed
+  AnalysisManager.keep_cfg am;
+  am.am_dirty

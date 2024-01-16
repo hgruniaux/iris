@@ -1,4 +1,4 @@
-open Mir
+open Mr
 
 (** This pass inserts the prolog and epilog code of a function. Generally,
     these two allocate and free the function's stack frame. *)

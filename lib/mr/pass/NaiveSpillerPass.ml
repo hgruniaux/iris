@@ -1,4 +1,4 @@
-open Mir
+open Mr
 
 let handle_inst tmp_regs colors inst =
   let available_tmp_regs = ref tmp_regs in
@@ -15,7 +15,7 @@ let handle_inst tmp_regs colors inst =
   in
 
   (* Generate load instructions for used spilled registers. *)
-  inst.i_uses <-
+  inst.mi_uses <-
     Reg.Set.map
       (fun use ->
         match Reg.Map.find_opt use colors with
@@ -24,32 +24,32 @@ let handle_inst tmp_regs colors inst =
             | Some r -> r
             | None ->
                 let tmp_reg = choose_tmp_reg () in
-                load_insts := Mir.mk_stack_load tmp_reg n :: !load_insts;
+                load_insts := Mr.mk_stack_load tmp_reg n :: !load_insts;
                 Hashtbl.add mapping n tmp_reg;
                 tmp_reg)
         | _ -> use)
-      inst.i_uses;
+      inst.mi_uses;
 
   (* Generate store instructions for defined spilled registers. *)
-  inst.i_defs <-
+  inst.mi_defs <-
     Reg.Set.map
       (fun use ->
         match Reg.Map.find_opt use colors with
         | Some (RegAlloc.Spilled n) -> (
             match Hashtbl.find_opt mapping n with
             | Some r ->
-                store_insts := Mir.mk_stack_store n r :: !load_insts;
+                store_insts := Mr.mk_stack_store n r :: !load_insts;
                 r
             | None ->
                 let tmp_reg = choose_tmp_reg () in
-                store_insts := Mir.mk_stack_store n tmp_reg :: !load_insts;
+                store_insts := Mr.mk_stack_store n tmp_reg :: !load_insts;
                 Hashtbl.add mapping n tmp_reg;
                 tmp_reg)
         | _ -> use)
-      inst.i_defs;
+      inst.mi_defs;
 
   (* Update operands to use the newly introduced temporary registers. *)
-  inst.i_operands <-
+  inst.mi_operands <-
     List.map
       (function
         | Oreg r as o -> (
@@ -57,7 +57,7 @@ let handle_inst tmp_regs colors inst =
             | Some (RegAlloc.Spilled n) -> Oreg (Hashtbl.find mapping n)
             | _ -> o)
         | o -> o)
-      inst.i_operands;
+      inst.mi_operands;
 
   (!load_insts, !store_insts)
 
@@ -83,16 +83,16 @@ let pass_fn tmp_regs colors fn =
   in
 
   (* Update the function's frame. *)
-  fn.fn_frame <-
+  fn.mfn_frame <-
     Some
-      { frame_params = List.length fn.fn_params; frame_locals = locals_count };
+      { frame_params = List.length fn.mfn_params; frame_locals = locals_count };
 
   Label.Map.iter
     (fun _ bb ->
-      bb.bb_insts <-
+      bb.mbb_insts <-
         List.fold_right
           (fun inst acc ->
             let load_insts, store_insts = handle_inst tmp_regs colors inst in
             load_insts @ (inst :: (store_insts @ acc)))
-          bb.bb_insts [])
-    fn.fn_blocks
+          bb.mbb_insts [])
+    fn.mfn_blocks

@@ -3,8 +3,19 @@
  * from the liveness information.
  *)
 
-open Mir
+open Mr
 open Liveness
+
+type edge_kind = Interf | Pref
+
+module EdgeLabel = struct
+  type t = edge_kind
+
+  let default = Interf
+  let compare = Stdlib.compare
+end
+
+module G = Graph.Imperative.Graph.ConcreteLabeled (Reg) (EdgeLabel)
 
 type arcs = { prefs : Reg.set; intfs : Reg.set }
 type graph = arcs Reg.map
@@ -94,25 +105,27 @@ let make regs liveinfo =
       let live = ref bb_liveinfo.bb_live_out in
       List.iter
         (fun inst ->
-          if inst.i_is_mov then (
+          if inst.mi_is_mov then (
             (* Add a special preference edge for mov instructions so the registers
                can be coalesced later. *)
-            live := Reg.Set.diff !live inst.i_defs;
+            live := Reg.Set.diff !live inst.mi_defs;
 
             Reg.Set.iter
               (fun d ->
-                Reg.Set.iter (fun u -> graph := add_pref !graph d u) inst.i_uses)
-              inst.i_defs);
+                Reg.Set.iter
+                  (fun u -> graph := add_pref !graph d u)
+                  inst.mi_uses)
+              inst.mi_defs);
 
-          live := Reg.Set.union !live inst.i_defs;
+          live := Reg.Set.union !live inst.mi_defs;
 
           Reg.Set.iter
             (fun d ->
               Reg.Set.iter (fun r -> graph := add_intf !graph d r) !live)
-            inst.i_defs;
+            inst.mi_defs;
 
-          live := Reg.Set.union inst.i_uses (Reg.Set.diff !live inst.i_defs))
-        (List.rev bb.bb_insts))
+          live := Reg.Set.union inst.mi_uses (Reg.Set.diff !live inst.mi_defs))
+        (List.rev bb.mbb_insts))
     liveinfo;
 
   !graph
@@ -126,10 +139,10 @@ let dump_interference graph =
     if not (Hashtbl.mem vertices vertex) then (
       if Reg.is_physical vertex then
         Format.fprintf ppf "_%d [label=\"%a\";shape=rect];\n" vertex
-          IrPP.pp_register vertex
+          PPrintIr.pp_register vertex
       else
         Format.fprintf ppf "_%d [label=\"%a\";shape=circle];\n" vertex
-          IrPP.pp_register vertex;
+          PPrintIr.pp_register vertex;
       Hashtbl.add vertices vertex true)
   in
 

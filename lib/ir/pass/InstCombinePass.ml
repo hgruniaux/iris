@@ -228,9 +228,9 @@ let instcombine_cmp cmp o1 o2 =
 let instcombine_jmpc cond then_l else_l =
   match cond with
   (* False condition *)
-  | Iop_imm a when a = Z.zero -> Some (Iinst_jmp else_l)
+  | Iop_imm a when a = Z.zero -> Some (Iterm_jmp else_l)
   (* True condition *)
-  | Iop_imm _ -> Some (Iinst_jmp then_l)
+  | Iop_imm _ -> Some (Iterm_jmp then_l)
   (* No simplification found *)
   | _ -> None
 
@@ -250,31 +250,47 @@ let update_cfg bb =
       succ.b_predecessors <- Reg.Set.add bb.b_label succ.b_predecessors)
     bb.b_successors
 
-let pass_fn fn =
-  let changed = ref false in
-
+let pass_fn am fn =
   Label.Map.iter
     (fun _ bb ->
-      iter_insts
-        (fun inst ->
+      let handle_inst inst =
+        let result =
+          match inst.i_kind with
+          | Iinst_binop (binop, o1, o2) -> instcombine_binop binop o1 o2
+          | Iinst_unop (unop, o) -> instcombine_unop unop o
+          | Iinst_cmp (cmp, o1, o2) -> instcombine_cmp cmp o1 o2
+          | _ -> None
+        in
+
+        inst.i_kind <-
+          (match result with
+          | Some kind ->
+              AnalysisManager.mark_as_dirty am;
+              kind
+          | _ -> inst.i_kind)
+      in
+
+      List.iter handle_inst bb.b_phi_insts;
+      List.iter handle_inst bb.b_insts;
+
+      match bb.b_term with
+      | None -> failwith "expected terminator instruction"
+      | Some term ->
           let result =
-            match inst.i_kind with
-            | Iinst_binop (binop, o1, o2) -> instcombine_binop binop o1 o2
-            | Iinst_unop (unop, o) -> instcombine_unop unop o
-            | Iinst_cmp (cmp, o1, o2) -> instcombine_cmp cmp o1 o2
-            | Iinst_jmpc (cond, tl, el) -> instcombine_jmpc cond tl el
+            match term.i_kind with
+            | Iterm_jmpc (cond, tl, el) -> instcombine_jmpc cond tl el
             | _ -> None
           in
 
-          inst.i_kind <-
+          term.i_kind <-
             (match result with
             | Some kind ->
-                changed := true;
+                AnalysisManager.mark_as_dirty am;
                 kind
-            | _ -> inst.i_kind);
+            | _ -> term.i_kind);
 
-          if is_term inst.i_kind then update_cfg bb)
-        bb)
+          update_cfg bb)
     fn.fn_blocks;
 
-  !changed
+  AnalysisManager.keep_cfg am;
+  am.am_dirty

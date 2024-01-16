@@ -1,4 +1,4 @@
-open Mir
+open Mr
 
 (** Returns the first [k] elements of [xs] and the remaining elements.
     If [xs] is too small, then [xs] is returned. *)
@@ -26,24 +26,24 @@ let rec map2 f l1 l2 =
 let pass_fn arch fn =
   let cc_info = Backend.cc_info arch in
   MirPassUtils.map_insts fn (fun inst ->
-      if inst.i_kind <> "call" then [ inst ]
+      if inst.mi_kind <> "call" then [ inst ]
       else
         let return_reg =
-          match List.hd inst.i_operands with
+          match List.hd inst.mi_operands with
           | Oreg r -> r
           | _ ->
               failwith
                 "expected a register as the first operand of a call instruction"
         in
         let callee =
-          match List.hd (List.tl inst.i_operands) with
+          match List.hd (List.tl inst.mi_operands) with
           | Ofunc f -> f
           | _ ->
               failwith
                 "expected a function as the second operand of a call \
                  instruction"
         in
-        let args = List.tl (List.tl inst.i_operands) in
+        let args = List.tl (List.tl inst.mi_operands) in
 
         let args_in_regs, args_in_stack =
           firstk cc_info.cc_args_regs_count args
@@ -91,5 +91,5 @@ let pass_fn arch fn =
         in
 
         precall_insts
-        @ Mir.mk_inst "call" [ Ofunc callee ] ~defs:!reg_defs ~uses:[]
+        @ Mr.mk_inst "call" [ Ofunc callee ] ~defs:!reg_defs ~uses:[]
           :: postcall_insts)

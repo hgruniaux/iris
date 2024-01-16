@@ -28,11 +28,13 @@ open Ir
       L3:
         ret %3
     *)
-let pass_fn fn =
+let pass_fn am fn =
   Label.Map.iter
     (fun _ bb ->
       List.iter
         (fun phi ->
+          AnalysisManager.mark_as_dirty am;
+
           let operands =
             match phi.i_kind with
             | Iinst_phi operands -> operands
@@ -63,8 +65,9 @@ let pass_fn fn =
       bb.b_phi_insts <- [])
     fn.fn_blocks;
 
+  AnalysisManager.keep_cfg am;
+  AnalysisManager.leave_ssa am;
   (* We are not in SSA form anymore. The symbol table is now meaningless.
      So we clear it to allow the GC retrieve the removed PHI nodes. *)
   Hashtbl.clear fn.fn_symbol_table;
-  (* As a simplification, we suppose that this pass always modify the code. *)
-  true
+  am.am_dirty

@@ -18,24 +18,26 @@ type calling_convention_info = {
           false if it is the callee. *)
 }
 
-let instsel_bb bb instsel_inst =
+let instsel_bb bb instsel_inst instsel_term =
+  let term_inst = Option.get bb.b_term in
   let mir_insts =
-    (* FIXME: mir_insts @ ... is SLOW, we should use fold_right *)
-    Ir.fold_insts (fun mir_insts inst -> mir_insts @ instsel_inst inst) [] bb
+    List.fold_right
+      (fun inst mir_insts -> instsel_inst inst @ mir_insts)
+      bb.b_insts (instsel_term term_inst)
   in
   {
-    Mir.bb_label = bb.b_label;
-    Mir.bb_insts = mir_insts;
-    Mir.bb_predecessors = bb.b_predecessors;
-    Mir.bb_successors = bb.b_successors;
+    Mr.mbb_label = bb.b_label;
+    Mr.mbb_insts = mir_insts;
+    Mr.mbb_predecessors = bb.b_predecessors;
+    Mr.mbb_successors = bb.b_successors;
   }
 
 let instsel_fn fn instsel_bb =
   let mir_blocks = Label.Map.map instsel_bb fn.fn_blocks in
   {
-    Mir.fn_name = fn.fn_name;
-    Mir.fn_params = fn.fn_params;
-    Mir.fn_blocks = mir_blocks;
-    Mir.fn_entry = Option.get fn.fn_entry;
-    Mir.fn_frame = None;
+    Mr.mfn_name = fn.fn_name;
+    Mr.mfn_params = fn.fn_params;
+    Mr.mfn_blocks = mir_blocks;
+    Mr.mfn_entry = Option.get fn.fn_entry;
+    Mr.mfn_frame = None;
   }

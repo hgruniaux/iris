@@ -45,6 +45,7 @@ let rec pp_type ppf = function
   | Ityp_ptr -> Format.fprintf ppf "ptr"
   | Ityp_func (ret, args) ->
       Format.fprintf ppf "%a (%a)" pp_type ret (pp_list pp_type) args
+  | Ityp_struct fields -> Format.fprintf ppf "{ %a }" (pp_list pp_type) fields
 
 let pp_binop ppf = function
   | Ibinop_add -> Format.fprintf ppf "add"
@@ -77,10 +78,13 @@ let pp_cmp ppf = function
   | Icmp_sgt -> Format.fprintf ppf "sgt"
   | Icmp_sge -> Format.fprintf ppf "sge"
 
-let pp_constant_value ppf constant =
+let rec pp_constant_value ppf constant =
   match constant with
   | Icst_int n -> Z.pp_print ppf n
   | Icst_string str -> Format.fprintf ppf "\"%s\"" (String.escaped str)
+  | Icst_function fn -> Format.fprintf ppf "@%s" fn.fn_name
+  | Icst_struct fields ->
+      Format.fprintf ppf "{ %a }" (pp_list pp_constant_value) fields
 
 let pp_constant =
   let constants = Hashtbl.create 17 in
@@ -104,12 +108,10 @@ let pp_instruction ppf inst =
   | Iinst_cst cst -> Format.fprintf ppf "%a = %a" pp_register n pp_constant cst
   | Iinst_loadi cst -> Format.fprintf ppf "%a = %a" pp_register n Z.pp_print cst
   | Iinst_mov r -> Format.fprintf ppf "%a = %a" pp_register n pp_register r
-  | Iinst_load r ->
-      Format.fprintf ppf "%a = load %a" pp_register n pp_register r
+  | Iinst_load (t, r) ->
+      Format.fprintf ppf "%a = load %a %a" pp_register n pp_type t pp_register r
   | Iinst_store (r, op) ->
       Format.fprintf ppf "store %a %a" pp_register r pp_operand op
-  | Iinst_alloca typ ->
-      Format.fprintf ppf "%a = alloca %a" pp_register n pp_type typ
   | Iinst_binop (binop, op1, op2) ->
       Format.fprintf ppf "%a = %a %a %a" pp_register n pp_binop binop pp_operand
         op1 pp_operand op2
@@ -126,11 +128,14 @@ let pp_instruction ppf inst =
         (pp_list (fun ppf (op, label) ->
              Format.fprintf ppf "(%a, %a)" pp_operand op pp_label label))
         predecessors
-  | Iinst_unreachable -> Format.fprintf ppf "unreachable"
-  | Iinst_ret -> Format.fprintf ppf "ret"
-  | Iinst_retv op -> Format.fprintf ppf "ret %a" pp_operand op
-  | Iinst_jmp bb -> Format.fprintf ppf "jmp %a" pp_label bb
-  | Iinst_jmpc (op, then_bb, else_bb) ->
+
+let pp_terminator ppf term =
+  match term.i_kind with
+  | Iterm_unreachable -> Format.fprintf ppf "unreachable"
+  | Iterm_ret -> Format.fprintf ppf "ret"
+  | Iterm_retv op -> Format.fprintf ppf "ret %a" pp_operand op
+  | Iterm_jmp bb -> Format.fprintf ppf "jmp %a" pp_label bb
+  | Iterm_jmpc (op, then_bb, else_bb) ->
       Format.fprintf ppf "jmpc %a %a %a" pp_operand op pp_label then_bb pp_label
         else_bb
 
@@ -140,7 +145,16 @@ let pp_bb ppf bb =
     Format.fprintf ppf " ; preds = %a" pp_labelset bb.b_predecessors;
   Format.fprintf ppf "@.";
 
-  Ir.iter_insts (fun inst -> Format.fprintf ppf "  %a@." pp_instruction inst) bb
+  List.iter
+    (fun inst -> Format.fprintf ppf "  %a@." pp_instruction inst)
+    bb.b_phi_insts;
+  List.iter
+    (fun inst -> Format.fprintf ppf "  %a@." pp_instruction inst)
+    bb.b_insts;
+
+  match bb.b_term with
+  | None -> failwith "expected terminator instruction"
+  | Some term -> Format.fprintf ppf "  %a@." pp_terminator term
 
 let rec pp_params ppf (regs, types) =
   match (regs, types) with
@@ -180,7 +194,17 @@ let dump_ctx ctx =
 let dump_dot funcdef =
   let pp_bb_in_dot ppf bb =
     Format.fprintf ppf "%a:\\l" pp_label bb.b_label;
-    Ir.iter_insts (fun i -> Format.fprintf ppf "    %a\\l" pp_instruction i) bb
+
+    List.iter
+      (fun inst -> Format.fprintf ppf "    %a\\l" pp_instruction inst)
+      bb.b_phi_insts;
+    List.iter
+      (fun inst -> Format.fprintf ppf "    %a\\l" pp_instruction inst)
+      bb.b_insts;
+
+    match bb.b_term with
+    | None -> failwith "expected terminator instruction"
+    | Some term -> Format.fprintf ppf "    %a\\l" pp_terminator term
   in
 
   Format.printf "digraph %s {@." funcdef.fn_name;

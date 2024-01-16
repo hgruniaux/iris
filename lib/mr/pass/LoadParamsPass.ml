@@ -1,4 +1,4 @@
-open Mir
+open Mr
 
 (** Returns the first [k] elements of [xs] and the remaining elements.
     If [xs] is too small, then [xs] is returned. *)
@@ -28,12 +28,12 @@ let pass_fn arch fn =
   let cc_info = Backend.cc_info arch in
 
   let args_in_regs, args_in_stack =
-    firstk cc_info.cc_args_regs_count fn.fn_params
+    firstk cc_info.cc_args_regs_count fn.mfn_params
   in
 
   (* Inserts the move instructions for the parameters lying in registers. *)
   let mov_insts =
-    map2 (fun arg reg -> Mir.mk_mov arg reg) args_in_regs cc_info.cc_args_regs
+    map2 (fun arg reg -> Mr.mk_mov arg reg) args_in_regs cc_info.cc_args_regs
   in
 
   (* Inserts the frame load instructions for the parameters lying in the stack. *)
@@ -44,7 +44,7 @@ let pass_fn arch fn =
   let load_insts =
     List.fold_right
       (fun reg insts ->
-        let result = Mir.mk_stack_load reg !cur_frame_idx :: insts in
+        let result = Mr.mk_stack_load reg !cur_frame_idx :: insts in
         decr cur_frame_idx;
         result)
       args_in_stack []

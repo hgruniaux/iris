@@ -25,7 +25,9 @@ module Reg = struct
     assert (i >= 0 && i < first_pseudo_reg);
     i
 
-  let compare (x : t) (y : t) = Stdlib.compare x y
+  let compare = Stdlib.compare
+  let equal = ( = )
+  let hash = Hashtbl.hash
 
   module Map = Map.Make (Int)
   module Set = Set.Make (Int)
@@ -41,10 +43,14 @@ type reg = Reg.t
 type label = Label.t
 type constant = Constant.t
 
-type typ = Ityp_void | Ityp_int | Ityp_ptr | Ityp_func of typ * typ list
+type typ =
+  | Ityp_void
+  | Ityp_int
+  | Ityp_ptr
+  | Ityp_func of typ * typ list
+  | Ityp_struct of typ list
 (*
   | Ityp_array of typ
-  | Ityp_struct of typ list
   | Ityp_union of typ list
   *)
 
@@ -62,6 +68,8 @@ and constant_value =
       (** A machine-dependant integer. All integers use 2-complement representation. *)
   | Icst_string of string
       (** A byte string. The string is not implicitly NUL-terminated. *)
+  | Icst_function of fn  (** A function pointer. *)
+  | Icst_struct of constant_value list  (** A structure constant. *)
 
 and fn = {
   fn_name : string;
@@ -90,43 +98,61 @@ and bb = {
   b_label : label;
   mutable b_phi_insts : inst list;
   mutable b_insts : inst list;
-  mutable b_term : inst option;
+  mutable b_term : term_inst option;
   mutable b_predecessors : Label.set;
   mutable b_successors : Label.set;
 }
 
 and operand = Iop_reg of reg | Iop_imm of Z.t
 
-and inst = {
+and 'a generic_inst = {
   i_name : reg;
-  mutable i_kind : inst_kind;
+  mutable i_kind : 'a;
   i_typ : typ;
   mutable i_bb : bb;
-  (* The instructions that are used by this instruction. *)
-  mutable i_uses : inst list;
-  (* Instructions are a doubly-linked list. *)
-  mutable i_next : inst option;
-  mutable i_prev : inst option;
 }
+
+and inst = inst_kind generic_inst
+and term_inst = term_kind generic_inst
+
+(** The different supported terminator instructions. A terminator instruction is
+    an instruction that terminates a basic block, or in other terms, an instruction
+    that create an edge in the CFG. *)
+and term_kind =
+  | Iterm_unreachable
+      (** A special terminator that tell the optimizer that this point is
+          unreachable. This can be emit, for example, after a noreturn function
+          call or a tail call. *)
+  | Iterm_ret
+      (** The function's return instruction. This instruction does not support
+          returning a value and therefore is only valid in functions returning
+          void. Use Iterm_retv instead if you need to return a value. *)
+  | Iterm_retv of operand
+      (** Same as Iterm_ret, but returns the given operand as the function's
+          return value. *)
+  | Iterm_jmp of label
+      (** An unconditional jump to the given basic block's name. The target
+          basic block must be in the same function as the jump instruction.
+          Long jumps are not supported by this instruction. *)
+  | Iterm_jmpc of operand * label * label
+      (** Same as Iterm_jmp but implements a conditional jump. If the given
+          condition operand is non-zero, then it jumps to the first label,
+          otherwise to the second. *)
 
 and inst_kind =
   | Iinst_cst of constant
-  | Iinst_loadi of Z.t
+  | Iinst_loadi of Z.t  (** An integer constant. *)
   | Iinst_mov of reg
-  | Iinst_load of reg
+  | Iinst_load of typ * reg
+      (** Loads a value of the requested type from memory at the specified
+          address. The requested type must be a first-class type (such as integer
+          but not a structure for example). *)
   | Iinst_store of reg * operand
-  | Iinst_alloca of typ
   | Iinst_binop of binop * operand * operand
   | Iinst_unop of unop * operand
   | Iinst_cmp of cmp * operand * operand
   | Iinst_call of fn * operand list
   | Iinst_phi of (operand * label) list
-  (* TODO: move terminator instruction to their own type *)
-  | Iinst_unreachable
-  | Iinst_ret
-  | Iinst_retv of operand
-  | Iinst_jmp of label
-  | Iinst_jmpc of operand * label * label
 
 and binop =
   | Ibinop_add (* Integer addition *)
@@ -163,13 +189,6 @@ let in_same_bb inst_a inst_b = inst_a.i_bb == inst_b.i_bb
 (** Checks if [inst_kind] represents a PHI instruction. *)
 let is_phi inst_kind = match inst_kind with Iinst_phi _ -> true | _ -> false
 
-(** Checks if [inst_kind] represents a terminator instruction. *)
-let is_term inst_kind =
-  match inst_kind with
-  | Iinst_unreachable | Iinst_ret | Iinst_retv _ | Iinst_jmp _ | Iinst_jmpc _ ->
-      true
-  | _ -> false
-
 (** Returns the type of [reg] in the given [fn]. *)
 let type_of_reg fn reg =
   match Hashtbl.find_opt fn.fn_symbol_table reg with
@@ -199,7 +218,10 @@ let get_int_constant ctx i =
       Hashtbl.add ctx.ctx_int_constants i id;
       id
 
-(** Returns the string constant [s] (not NUL-terminated) of [ctx]. *)
+(** Returns the string constant [s] (not NUL-terminated) of [ctx].
+
+    String constants are unique inside a context. For two identical
+    strings, this function will return the same value (physical equality). *)
 let get_string_constant ctx s =
   match Hashtbl.find_opt ctx.ctx_string_constants s with
   | Some c -> c
@@ -279,36 +301,6 @@ let is_entry_bb bb =
   | None -> false
   | Some entry_label -> bb.b_label = entry_label
 
-let update_uses inst ~remove =
-  let fn = inst.i_bb.b_func in
-  let update_uses_in_reg r =
-    match Hashtbl.find_opt fn.fn_symbol_table r with
-    | None -> ()
-    | Some inst_to_update ->
-        if remove then
-          inst_to_update.i_uses <-
-            List.filter (fun user -> user != inst) inst_to_update.i_uses
-        else inst_to_update.i_uses <- inst :: inst_to_update.i_uses
-  in
-  let update_uses_in_op op =
-    match op with Iop_imm _ -> () | Iop_reg r -> update_uses_in_reg r
-  in
-  match inst.i_kind with
-  | Iinst_cst _ | Iinst_loadi _ | Iinst_alloca _ -> ()
-  | Iinst_mov r | Iinst_load r -> update_uses_in_reg r
-  | Iinst_store (r, o) ->
-      update_uses_in_reg r;
-      update_uses_in_op o
-  | Iinst_binop (_, o1, o2) | Iinst_cmp (_, o1, o2) ->
-      update_uses_in_op o1;
-      update_uses_in_op o2
-  | Iinst_unop (_, o) -> update_uses_in_op o
-  | Iinst_call (_, args) -> List.iter update_uses_in_op args
-  | Iinst_phi predecessors ->
-      List.iter (fun (r, _) -> update_uses_in_op r) predecessors
-  | Iinst_jmp _ | Iinst_ret | Iinst_unreachable -> ()
-  | Iinst_retv o | Iinst_jmpc (o, _, _) -> update_uses_in_op o
-
 exception Found_type of typ
 
 let compute_inst_type bb kind =
@@ -332,15 +324,13 @@ let compute_inst_type bb kind =
   in
 
   match kind with
-  | Iinst_alloca _ -> Ityp_ptr
   | Iinst_mov r -> type_of_reg r
-  | Iinst_load addr ->
+  | Iinst_load (t, addr) ->
       assert (type_of_reg addr = Ityp_ptr);
-      Ityp_int (* TODO *)
+      t
   | Iinst_cst cst -> (
       match Hashtbl.find_opt bb.b_func.fn_ctx.ctx_constants cst with
-      | Some (Icst_int _) -> Ityp_int
-      | Some (Icst_string _) -> Ityp_ptr
+      | Some _ -> Ityp_ptr
       | None -> assert false)
   | Iinst_loadi _ -> Ityp_int
   | Iinst_binop (_, lhs, rhs) | Iinst_cmp (_, lhs, rhs) ->
@@ -372,9 +362,6 @@ let compute_inst_type bb kind =
                  assert (typ = new_typ);
                  Some new_typ)
            None predecessors)
-      (* Terminator instructions. *)
-  | Iinst_unreachable | Iinst_ret | Iinst_retv _ | Iinst_jmp _ | Iinst_jmpc _ ->
-      Ityp_void
 
 (** Creates an instruction of the given [kind] and [name] inside [bb].
     However, the instruction is not yet inserted in one of [bb]'s instruction list. *)
@@ -385,23 +372,10 @@ let mk_inst bb name kind =
       i_kind = kind;
       i_typ = compute_inst_type bb kind;
       i_bb = bb;
-      i_uses = [];
-      i_prev = None;
-      i_next = None;
     }
   in
   Hashtbl.add bb.b_func.fn_symbol_table name inst;
-  (* Find each instruction used by [inst] and update their i_uses field. *)
-  update_uses inst ~remove:false;
   inst
-
-(** Checks if [inst] has side effects. *)
-let has_sideeffect inst =
-  match inst.i_kind with
-  | Iinst_cst _ | Iinst_loadi _ | Iinst_mov _ | Iinst_load _ | Iinst_phi _
-  | Iinst_binop _ | Iinst_unop _ | Iinst_cmp _ ->
-      false
-  | _ -> true
 
 (** Inserts a phi node with the given [operands] into the given [bb]. *)
 let insert_phi bb operands =
@@ -414,21 +388,14 @@ let insert_phi bb operands =
 
 (** Returns the successors of a given terminator instruction kind. *)
 let successors_of_term = function
-  | Iinst_unreachable | Iinst_ret | Iinst_retv _ -> Label.Set.empty
-  | Iinst_jmp bb -> Label.Set.singleton bb
-  | Iinst_jmpc (_, then_bb, else_bb) -> Label.Set.of_list [ then_bb; else_bb ]
-  | _ -> failwith "not a terminator instruction"
+  | Iterm_unreachable | Iterm_ret | Iterm_retv _ -> Label.Set.empty
+  | Iterm_jmp bb -> Label.Set.singleton bb
+  | Iterm_jmpc (_, then_bb, else_bb) -> Label.Set.of_list [ then_bb; else_bb ]
 
 (** Sets the [bb]'s terminator to an instruction of the given [kind]. *)
-let set_term bb kind =
-  assert (is_term kind);
-
-  (match bb.b_term with
-  | None -> ()
-  | Some inst -> Hashtbl.remove bb.b_func.fn_symbol_table inst.i_name);
-
+let set_term bb (kind : term_kind) =
   let name = Reg.fresh () in
-  let inst = mk_inst bb name kind in
+  let inst = { i_bb = bb; i_name = name; i_kind = kind; i_typ = Ityp_void } in
   bb.b_term <- Some inst;
 
   (* Update successors. *)
@@ -448,14 +415,17 @@ let set_term bb kind =
       succ.b_predecessors <- Label.Set.add bb.b_label succ.b_predecessors)
     bb.b_successors
 
-let iter_insts f bb =
-  (* First, iterate over PHI nodes. *)
-  List.iter f bb.b_phi_insts;
-  List.iter f bb.b_insts;
-  (* And finally, handle the terminator. *)
-  match bb.b_term with None -> () | Some term -> f term
-
-let fold_insts f init bb =
-  let value = ref init in
-  iter_insts (fun inst -> value := f !value inst) bb;
-  !value
+(** Returns true if [inst_kind] may have observable side effects. *)
+let may_have_side_effects inst_kind =
+  match inst_kind with
+  | Iinst_cst _ | Iinst_loadi _ -> false
+  | Iinst_load _ -> false (* Reading from memory has no side effects. *)
+  | Iinst_store _ -> true (* But writting to memory, yes. *)
+  (* Moves and PHI instructions do not have any side effects. *)
+  | Iinst_mov _ -> false
+  | Iinst_phi _ -> false
+  (* Arithmetic/logical/comparison instructions do not have any side effects. *)
+  | Iinst_binop _ | Iinst_unop _ | Iinst_cmp _ -> false
+  (* A call to a function may have side effects. However, in some cases, we can
+     prove that the callee function is pure (has no side effets). *)
+  | Iinst_call _ -> true (* TODO: support pure functions for side effects *)

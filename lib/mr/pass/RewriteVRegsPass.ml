@@ -1,6 +1,6 @@
-open Mir
+open Mr
 
-(** This pass modify the MIR to replace each occurrence of a pseudo register
+(** This pass modify the Mr to replace each occurrence of a pseudo register
     to its selected physical register (result of register allocation). If the
     pseudo register is spilled, this pass also inserts load and store
     instructions to the stack. *)
@@ -23,6 +23,6 @@ let pass_fn colors fn =
         | _ -> o
       in
 
-      inst.i_operands <- List.map rewrite_operand inst.i_operands;
-      inst.i_uses <- Reg.Set.filter_map rewrite_reg inst.i_uses;
-      inst.i_defs <- Reg.Set.filter_map rewrite_reg inst.i_defs)
+      inst.mi_operands <- List.map rewrite_operand inst.mi_operands;
+      inst.mi_uses <- Reg.Set.filter_map rewrite_reg inst.mi_uses;
+      inst.mi_defs <- Reg.Set.filter_map rewrite_reg inst.mi_defs)

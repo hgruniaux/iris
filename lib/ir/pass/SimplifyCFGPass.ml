@@ -16,13 +16,13 @@ let update_terminator bb old_label new_label =
   let term = Option.get bb.b_term in
   let replace_label label = if label = old_label then new_label else label in
   match term.i_kind with
-  | Iinst_jmp label -> Ir.set_term bb (Iinst_jmp (replace_label label))
-  | Iinst_jmpc (r, tl, el) ->
+  | Iterm_jmp label -> Ir.set_term bb (Iterm_jmp (replace_label label))
+  | Iterm_jmpc (r, tl, el) ->
       let tl = replace_label tl in
       let el = replace_label el in
-      if tl = el then Ir.set_term bb (Iinst_jmp tl)
-      else Ir.set_term bb (Iinst_jmpc (r, tl, el))
-  | _ -> ()
+      if tl = el then Ir.set_term bb (Iterm_jmp tl)
+      else Ir.set_term bb (Iterm_jmpc (r, tl, el))
+  | Iterm_ret | Iterm_retv _ | Iterm_unreachable -> ()
 
 let merge_two_bbs from_bb to_bb =
   (* Move PHI nodes from [from_bb] to [to_bb]. *)
@@ -77,8 +77,7 @@ let remove_bb fn bb =
       - Basic blocks with a single predecessor and the predecessor only has one
         successor can be merged.
 *)
-let pass_fn fn =
-  let changed = ref false in
+let pass_fn am fn =
   let worklist = Queue.create () in
   Label.Map.iter (fun _ bb -> Queue.add bb worklist) fn.fn_blocks;
 
@@ -90,7 +89,7 @@ let pass_fn fn =
     if not still_exist then ()
       (* Remove unreachable basic blocks. See is_unreachable for a definition of unreachable. *)
     else if is_unreachable bb then (
-      changed := true;
+      AnalysisManager.mark_as_dirty am;
       (* Remove bb from its successors' predecessors list. *)
       Label.Set.iter
         (fun succ_label ->
@@ -100,7 +99,12 @@ let pass_fn fn =
         bb.b_successors;
 
       (* Remove all bb's instructions from the symbol table. *)
-      iter_insts (fun inst -> Hashtbl.remove fn.fn_symbol_table inst.i_name) bb;
+      List.iter
+        (fun inst -> Hashtbl.remove fn.fn_symbol_table inst.i_name)
+        bb.b_phi_insts;
+      List.iter
+        (fun inst -> Hashtbl.remove fn.fn_symbol_table inst.i_name)
+        bb.b_insts;
 
       remove_bb fn bb)
     else if
@@ -113,7 +117,7 @@ let pass_fn fn =
       let pred = Label.Map.find pred_label bb.b_func.fn_blocks in
 
       if Label.Set.cardinal pred.b_successors = 1 then (
-        changed := true;
+        AnalysisManager.mark_as_dirty am;
         merge_into_successor pred bb;
         remove_bb fn pred;
 
@@ -128,4 +132,4 @@ let pass_fn fn =
         Queue.add bb worklist)
   done;
 
-  !changed
+  am.am_dirty

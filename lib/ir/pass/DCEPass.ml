@@ -4,7 +4,7 @@ open Ir
 
     All instructions that have no side effects and that are not used in
     the program are removed. *)
-let pass_fn fn =
+let pass_fn am fn =
   let used_names = Hashtbl.create 17 in
 
   (*
@@ -21,23 +21,30 @@ let pass_fn fn =
   (* Mark used instructions. *)
   Label.Map.iter
     (fun _ bb ->
-      iter_insts
-        (fun inst ->
-          match inst.i_kind with
-          | Iinst_alloca _ | Iinst_loadi _ | Iinst_cst _ -> ()
-          | Iinst_mov r | Iinst_load r -> mark_reg r
-          | Iinst_store (r, o) ->
-              mark_reg r;
-              mark_operand o
-          | Iinst_binop (_, o1, o2) | Iinst_cmp (_, o1, o2) ->
-              mark_operand o1;
-              mark_operand o2
-          | Iinst_unop (_, o) | Iinst_jmpc (o, _, _) | Iinst_retv o ->
-              mark_operand o
-          | Iinst_call (_, args) -> List.iter mark_operand args
-          | Iinst_phi args -> List.iter (fun (o, _) -> mark_operand o) args
-          | Iinst_jmp _ | Iinst_ret | Iinst_unreachable -> ())
-        bb)
+      let mark_inst inst =
+        match inst.i_kind with
+        | Iinst_loadi _ | Iinst_cst _ -> ()
+        | Iinst_mov r | Iinst_load (_, r) -> mark_reg r
+        | Iinst_store (r, o) ->
+            mark_reg r;
+            mark_operand o
+        | Iinst_binop (_, o1, o2) | Iinst_cmp (_, o1, o2) ->
+            mark_operand o1;
+            mark_operand o2
+        | Iinst_unop (_, o) -> mark_operand o
+        | Iinst_call (_, args) -> List.iter mark_operand args
+        | Iinst_phi args -> List.iter (fun (o, _) -> mark_operand o) args
+      in
+
+      List.iter mark_inst bb.b_phi_insts;
+      List.iter mark_inst bb.b_insts;
+
+      match bb.b_term with
+      | None -> failwith "expected a terminator instruction"
+      | Some term -> (
+          match term.i_kind with
+          | Iterm_jmpc (o, _, _) | Iterm_retv o -> mark_operand o
+          | Iterm_jmp _ | Iterm_ret | Iterm_unreachable -> ()))
     fn.fn_blocks;
 
   let removed_insts = ref 0 in
@@ -61,7 +68,8 @@ let pass_fn fn =
         List.filter
           (fun inst ->
             let keep =
-              has_sideeffect inst || Hashtbl.mem used_names inst.i_name
+              may_have_side_effects inst.i_kind
+              || Hashtbl.mem used_names inst.i_name
             in
             if not keep then (
               incr removed_insts;
@@ -71,5 +79,9 @@ let pass_fn fn =
     (* Terminator instructions have side effects by definition. They can not be removed. *)
     fn.fn_blocks;
 
+  AnalysisManager.keep_cfg am;
   (* The code has changed if we have removed at least one instruction. *)
-  !removed_insts > 0
+  if !removed_insts > 0 then (
+    AnalysisManager.mark_as_dirty am;
+    true)
+  else false
