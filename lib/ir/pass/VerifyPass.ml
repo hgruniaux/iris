@@ -27,10 +27,7 @@ let pass_fn _ fn =
         (fun inst ->
           let kind = inst.i_kind in
           assert (not (is_phi kind)))
-        bb.b_insts;
-
-      (* All basic blocks must have a terminator instruction. *)
-      assert (Option.is_some bb.b_term))
+        bb.b_insts)
     fn.fn_blocks;
 
   (* Does not change the code, only verify it. *)

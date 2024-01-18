@@ -4,36 +4,33 @@ open Ir
     A basic block is considered unreachable if:
       - it has no predecessors (except the entry block)
       - it has only itself as predecessor *)
-let is_unreachable bb =
+let is_unreachable fn bb =
   let is_predecessors_itself =
     Label.Set.cardinal bb.b_predecessors = 1
     && Label.Set.choose bb.b_predecessors = bb.b_label
   in
-  (not (is_entry_bb bb))
+  (not (is_entry_bb fn bb))
   && (Label.Set.is_empty bb.b_predecessors || is_predecessors_itself)
 
-let update_terminator bb old_label new_label =
-  let term = Option.get bb.b_term in
+let update_terminator fn bb old_label new_label =
   let replace_label label = if label = old_label then new_label else label in
-  match term.i_kind with
-  | Iterm_jmp label -> Ir.set_term bb (Iterm_jmp (replace_label label))
+  match bb.b_term with
+  | Iterm_jmp label -> BasicBlock.set_term fn bb (Iterm_jmp (replace_label label))
   | Iterm_jmpc (r, tl, el) ->
       let tl = replace_label tl in
       let el = replace_label el in
-      if tl = el then Ir.set_term bb (Iterm_jmp tl)
-      else Ir.set_term bb (Iterm_jmpc (r, tl, el))
+      if tl = el then BasicBlock.set_term fn bb (Iterm_jmp tl)
+      else BasicBlock.set_term fn bb (Iterm_jmpc (r, tl, el))
   | Iterm_ret | Iterm_retv _ | Iterm_unreachable -> ()
 
 let merge_two_bbs from_bb to_bb =
   (* Move PHI nodes from [from_bb] to [to_bb]. *)
-  List.iter (fun inst -> inst.i_bb <- to_bb) from_bb.b_phi_insts;
   to_bb.b_phi_insts <- from_bb.b_phi_insts @ to_bb.b_phi_insts;
 
   (* Move regular instructions. *)
-  List.iter (fun inst -> inst.i_bb <- to_bb) from_bb.b_insts;
   to_bb.b_insts <- from_bb.b_insts @ to_bb.b_insts
 
-let merge_into_successor bb succ =
+let merge_into_successor fn bb succ =
   merge_two_bbs bb succ;
 
   succ.b_predecessors <- Label.Set.empty;
@@ -41,9 +38,9 @@ let merge_into_successor bb succ =
   (* Update bb's predecessor to point to [succ] now. *)
   Label.Set.iter
     (fun pred_label ->
-      let pred = Label.Map.find pred_label bb.b_func.fn_blocks in
+      let pred = Label.Map.find pred_label fn.fn_blocks in
       succ.b_predecessors <- Label.Set.add pred_label succ.b_predecessors;
-      update_terminator pred bb.b_label succ.b_label)
+      update_terminator fn pred bb.b_label succ.b_label)
     bb.b_predecessors;
 
   bb.b_successors <- Label.Set.empty;
@@ -88,7 +85,7 @@ let pass_fn am fn =
     let still_exist = Label.Map.mem bb.b_label fn.fn_blocks in
     if not still_exist then ()
       (* Remove unreachable basic blocks. See is_unreachable for a definition of unreachable. *)
-    else if is_unreachable bb then (
+    else if is_unreachable fn bb then (
       AnalysisManager.mark_as_dirty am;
       (* Remove bb from its successors' predecessors list. *)
       Label.Set.iter
@@ -114,11 +111,11 @@ let pass_fn am fn =
       Label.Set.cardinal bb.b_predecessors = 1 && bb.b_phi_insts = []
     then
       let pred_label = Label.Set.choose bb.b_predecessors in
-      let pred = Label.Map.find pred_label bb.b_func.fn_blocks in
+      let pred = Label.Map.find pred_label fn.fn_blocks in
 
       if Label.Set.cardinal pred.b_successors = 1 then (
         AnalysisManager.mark_as_dirty am;
-        merge_into_successor pred bb;
+        merge_into_successor fn pred bb;
         remove_bb fn pred;
 
         if Option.get fn.fn_entry = pred_label then

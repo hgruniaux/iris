@@ -94,31 +94,22 @@ and fn = {
 }
 
 and bb = {
-  b_func : fn;
   b_label : label;
   mutable b_phi_insts : inst list;
   mutable b_insts : inst list;
-  mutable b_term : term_inst option;
+  mutable b_term : term;
   mutable b_predecessors : Label.set;
   mutable b_successors : Label.set;
 }
 
 and operand = Iop_reg of reg | Iop_imm of Z.t
-
-and 'a generic_inst = {
-  i_name : reg;
-  mutable i_kind : 'a;
-  i_typ : typ;
-  mutable i_bb : bb;
-}
-
+and 'a generic_inst = { i_name : reg; mutable i_kind : 'a; i_typ : typ }
 and inst = inst_kind generic_inst
-and term_inst = term_kind generic_inst
 
 (** The different supported terminator instructions. A terminator instruction is
     an instruction that terminates a basic block, or in other terms, an instruction
     that create an edge in the CFG. *)
-and term_kind =
+and term =
   | Iterm_unreachable
       (** A special terminator that tell the optimizer that this point is
           unreachable. This can be emit, for example, after a noreturn function
@@ -155,39 +146,40 @@ and inst_kind =
   | Iinst_phi of (operand * label) list
 
 and binop =
-  | Ibinop_add (* Integer addition *)
-  | Ibinop_sub (* Integer subtraction *)
-  | Ibinop_mul (* Integer multiplication *)
-  | Ibinop_udiv (* Unsigned integer division *)
-  | Ibinop_sdiv (* Signed integer division *)
-  | Ibinop_urem (* Unsigned integer division remainder *)
-  | Ibinop_srem (* Signed integer division remainder *)
-  | Ibinop_lsl (* Logical left shift *)
-  | Ibinop_asr (* Arithmetic right shift *)
-  | Ibinop_lsr (* Logical right shift *)
-  | Ibinop_and (* Bitwise and *)
-  | Ibinop_or (* Bitwise or *)
-  | Ibinop_xor (* Bitwise xor *)
+  | Ibinop_add  (** Integer addition. *)
+  | Ibinop_sub  (** Integer subtraction. *)
+  | Ibinop_mul  (** Integer multiplication. *)
+  | Ibinop_udiv  (** Unsigned integer division. *)
+  | Ibinop_sdiv  (** Signed integer division. *)
+  | Ibinop_urem  (** Unsigned integer division. remainder. *)
+  | Ibinop_srem  (** Signed integer division remainder. *)
+  | Ibinop_lsl  (** Logical left shift. *)
+  | Ibinop_asr  (** Arithmetic right shift. *)
+  | Ibinop_lsr  (** Logical right shift. *)
+  | Ibinop_and  (** Bitwise AND. *)
+  | Ibinop_or  (** Bitwise OR. *)
+  | Ibinop_xor  (** Bitwise XOR. *)
 
-and unop = Iunop_neg | Iunop_not
+and unop =
+  | Iunop_neg  (** Two's complement integer negation. *)
+  | Iunop_not  (** Bitwise NOT. *)
 
 and cmp =
-  | Icmp_eq (* Equal to *)
-  | Icmp_ne (* Not equal to *)
-  | Icmp_ult (* Unsigned less than *)
-  | Icmp_ule (* Unsigned less than or equal to *)
-  | Icmp_ugt (* Unsigned greater than *)
-  | Icmp_uge (* Unsigned greater than or equal to *)
-  | Icmp_slt (* Signed less than *)
-  | Icmp_sle (* Signed less than or equal to *)
-  | Icmp_sgt (* Signed greater than *)
-  | Icmp_sge (* Signed greater than or equal to *)
-
-(** Checks if [inst_a] and [inst_b] live in the same basic block. *)
-let in_same_bb inst_a inst_b = inst_a.i_bb == inst_b.i_bb
+  | Icmp_eq  (** Equal to. *)
+  | Icmp_ne  (** Not equal to. *)
+  | Icmp_ult  (** Unsigned less than. *)
+  | Icmp_ule  (** Unsigned less than or equal to. *)
+  | Icmp_ugt  (** Unsigned greater than. *)
+  | Icmp_uge  (** Unsigned greater than or equal to. *)
+  | Icmp_slt  (** Signed less than. *)
+  | Icmp_sle  (** Signed less than or equal to. *)
+  | Icmp_sgt  (** Signed greater than. *)
+  | Icmp_sge  (** Signed greater than or equal to. *)
 
 (** Checks if [inst_kind] represents a PHI instruction. *)
 let is_phi inst_kind = match inst_kind with Iinst_phi _ -> true | _ -> false
+
+let is_bb_from bb fn = Label.Map.mem bb.b_label fn.fn_blocks
 
 (** Returns the type of [reg] in the given [fn]. *)
 let type_of_reg fn reg =
@@ -284,11 +276,10 @@ let mk_bb func =
   let label = Label.fresh () in
   let bb =
     {
-      b_func = func;
       b_label = label;
       b_phi_insts = [];
       b_insts = [];
-      b_term = None;
+      b_term = Iterm_unreachable;
       b_predecessors = Label.Set.empty;
       b_successors = Label.Set.empty;
     }
@@ -296,23 +287,23 @@ let mk_bb func =
   func.fn_blocks <- Label.Map.add label bb func.fn_blocks;
   bb
 
-let is_entry_bb bb =
-  match bb.b_func.fn_entry with
+let is_entry_bb fn bb =
+  match fn.fn_entry with
   | None -> false
-  | Some entry_label -> bb.b_label = entry_label
+  | Some bb_label -> bb.b_label = bb_label
 
 exception Found_type of typ
 
-let compute_inst_type bb kind =
+let compute_inst_type fn kind =
   let type_of_reg r =
-    match Hashtbl.find_opt bb.b_func.fn_symbol_table r with
+    match Hashtbl.find_opt fn.fn_symbol_table r with
     | Some inst -> inst.i_typ
     | None -> (
         (* Maybe the register names a parameter and not an instruction. *)
         try
           List.iter2
             (fun param typ -> if param = r then raise (Found_type typ))
-            bb.b_func.fn_params (param_types_of bb.b_func);
+            fn.fn_params (param_types_of fn);
 
           (* Should not happen. *)
           assert false
@@ -329,7 +320,7 @@ let compute_inst_type bb kind =
       assert (type_of_reg addr = Ityp_ptr);
       t
   | Iinst_cst cst -> (
-      match Hashtbl.find_opt bb.b_func.fn_ctx.ctx_constants cst with
+      match Hashtbl.find_opt fn.fn_ctx.ctx_constants cst with
       | Some _ -> Ityp_ptr
       | None -> assert false)
   | Iinst_loadi _ -> Ityp_int
@@ -362,70 +353,3 @@ let compute_inst_type bb kind =
                  assert (typ = new_typ);
                  Some new_typ)
            None predecessors)
-
-(** Creates an instruction of the given [kind] and [name] inside [bb].
-    However, the instruction is not yet inserted in one of [bb]'s instruction list. *)
-let mk_inst bb name kind =
-  let inst =
-    {
-      i_name = name;
-      i_kind = kind;
-      i_typ = compute_inst_type bb kind;
-      i_bb = bb;
-    }
-  in
-  Hashtbl.add bb.b_func.fn_symbol_table name inst;
-  inst
-
-(** Inserts a phi node with the given [operands] into the given [bb]. *)
-let insert_phi bb operands =
-  assert (operands <> []);
-  let name = Reg.fresh () in
-  let inst = mk_inst bb name (Iinst_phi operands) in
-  (* Insert the PHI node in [bb]. *)
-  bb.b_phi_insts <- inst :: bb.b_phi_insts;
-  name
-
-(** Returns the successors of a given terminator instruction kind. *)
-let successors_of_term = function
-  | Iterm_unreachable | Iterm_ret | Iterm_retv _ -> Label.Set.empty
-  | Iterm_jmp bb -> Label.Set.singleton bb
-  | Iterm_jmpc (_, then_bb, else_bb) -> Label.Set.of_list [ then_bb; else_bb ]
-
-(** Sets the [bb]'s terminator to an instruction of the given [kind]. *)
-let set_term bb (kind : term_kind) =
-  let name = Reg.fresh () in
-  let inst = { i_bb = bb; i_name = name; i_kind = kind; i_typ = Ityp_void } in
-  bb.b_term <- Some inst;
-
-  (* Update successors. *)
-
-  (* First we remove [bb] from its successors' predecessors list. *)
-  Label.Set.iter
-    (fun succ_label ->
-      let succ = Label.Map.find succ_label bb.b_func.fn_blocks in
-      succ.b_predecessors <- Label.Set.remove bb.b_label succ.b_predecessors)
-    bb.b_successors;
-
-  (* Then we add [bb] to its new successors. *)
-  bb.b_successors <- successors_of_term kind;
-  Label.Set.iter
-    (fun succ_label ->
-      let succ = Label.Map.find succ_label bb.b_func.fn_blocks in
-      succ.b_predecessors <- Label.Set.add bb.b_label succ.b_predecessors)
-    bb.b_successors
-
-(** Returns true if [inst_kind] may have observable side effects. *)
-let may_have_side_effects inst_kind =
-  match inst_kind with
-  | Iinst_cst _ | Iinst_loadi _ -> false
-  | Iinst_load _ -> false (* Reading from memory has no side effects. *)
-  | Iinst_store _ -> true (* But writting to memory, yes. *)
-  (* Moves and PHI instructions do not have any side effects. *)
-  | Iinst_mov _ -> false
-  | Iinst_phi _ -> false
-  (* Arithmetic/logical/comparison instructions do not have any side effects. *)
-  | Iinst_binop _ | Iinst_unop _ | Iinst_cmp _ -> false
-  (* A call to a function may have side effects. However, in some cases, we can
-     prove that the callee function is pure (has no side effets). *)
-  | Iinst_call _ -> true (* TODO: support pure functions for side effects *)

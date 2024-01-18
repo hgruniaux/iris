@@ -234,19 +234,19 @@ let instcombine_jmpc cond then_l else_l =
   (* No simplification found *)
   | _ -> None
 
-let update_cfg bb =
+let update_cfg fn bb =
   (* Remove bb from its old successors *)
   Reg.Set.iter
     (fun succ_label ->
-      let succ = Reg.Map.find succ_label bb.b_func.fn_blocks in
+      let succ = Reg.Map.find succ_label fn.fn_blocks in
       succ.b_predecessors <- Reg.Set.remove bb.b_label succ.b_predecessors)
     bb.b_successors;
 
   (* Then re-add with the new successors. *)
-  bb.b_successors <- successors_of_term (Option.get bb.b_term).i_kind;
+  bb.b_successors <- Terminator.successors_of bb.b_term;
   Reg.Set.iter
     (fun succ_label ->
-      let succ = Reg.Map.find succ_label bb.b_func.fn_blocks in
+      let succ = Reg.Map.find succ_label fn.fn_blocks in
       succ.b_predecessors <- Reg.Set.add bb.b_label succ.b_predecessors)
     bb.b_successors
 
@@ -273,23 +273,19 @@ let pass_fn am fn =
       List.iter handle_inst bb.b_phi_insts;
       List.iter handle_inst bb.b_insts;
 
-      match bb.b_term with
-      | None -> failwith "expected terminator instruction"
+      let result =
+        match bb.b_term with
+        | Iterm_jmpc (cond, tl, el) -> instcombine_jmpc cond tl el
+        | _ -> None
+      in
+
+      (match result with
       | Some term ->
-          let result =
-            match term.i_kind with
-            | Iterm_jmpc (cond, tl, el) -> instcombine_jmpc cond tl el
-            | _ -> None
-          in
+          AnalysisManager.mark_as_dirty am;
+          bb.b_term <- term
+      | _ -> ());
 
-          term.i_kind <-
-            (match result with
-            | Some kind ->
-                AnalysisManager.mark_as_dirty am;
-                kind
-            | _ -> term.i_kind);
-
-          update_cfg bb)
+      update_cfg fn bb)
     fn.fn_blocks;
 
   AnalysisManager.keep_cfg am;

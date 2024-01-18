@@ -11,12 +11,11 @@ let map_operands f inst =
         Iinst_phi (List.map (fun (o, label) -> (f o, label)) operands)
     | _ -> inst.i_kind)
 
-let map_term_operands f inst =
-  inst.i_kind <-
-    (match inst.i_kind with
-    | Iterm_jmpc (cond, tl, te) -> Iterm_jmpc (f cond, tl, te)
-    | Iterm_retv value -> Iterm_retv (f value)
-    | Iterm_jmp _ | Iterm_ret | Iterm_unreachable -> inst.i_kind)
+let map_term_operands f term =
+  match term with
+  | Iterm_jmpc (cond, tl, te) -> Iterm_jmpc (f cond, tl, te)
+  | Iterm_retv value -> Iterm_retv (f value)
+  | Iterm_jmp _ | Iterm_ret | Iterm_unreachable -> term
 
 (** This pass propagates moves and constants to later operands.
     So, for example:
@@ -83,10 +82,7 @@ let pass_fn am fn =
 
       List.iter handle_inst bb.b_phi_insts;
       List.iter handle_inst bb.b_insts;
-
-      match bb.b_term with
-      | None -> failwith "expected a terminator instruction"
-      | Some term -> map_term_operands update_operand term)
+      bb.b_term <- map_term_operands update_operand bb.b_term)
     fn.fn_blocks;
 
   AnalysisManager.keep_cfg am;

@@ -34,8 +34,9 @@ let finish ib =
 (** Adds the instruction [inst] that writes to [reg] into the current
     basic block of the given IR Builder [ib]. *)
 let add_inst ib reg inst_kind =
+  let fn = Option.get ib.cur_func_decl in
   let bb = Option.get ib.cur_bb in
-  let inst = Ir.mk_inst bb reg inst_kind in
+  let inst = Instruction.create fn reg inst_kind in
   bb.b_insts <- inst :: bb.b_insts;
   reg
 
@@ -126,8 +127,9 @@ let mk_free ib ptr =
   mk_call ib fn [ Iop_reg ptr ]
 
 let set_term ib term_kind =
+  let cur_fn = Option.get ib.cur_func_decl in
   let cur_bb = Option.get ib.cur_bb in
-  Ir.set_term cur_bb term_kind;
+  BasicBlock.set_term cur_fn cur_bb term_kind;
   ib.cur_bb <- None
 
 let set_bb ib bb = ib.cur_bb <- Some bb
@@ -135,7 +137,7 @@ let set_bb ib bb = ib.cur_bb <- Some bb
 let mk_bb ib =
   let fn = Option.get ib.cur_func_decl in
   let bb = Ir.mk_bb fn in
-  Ir.set_term bb Iterm_unreachable;
+  BasicBlock.set_term fn bb Iterm_unreachable;
   bb
 
 let mk_fn ib name arity =
@@ -169,6 +171,7 @@ let mk_continue ib =
   set_bb ib next_bb
 
 let mk_if_expr ib cond then_gf else_gf =
+  let fn = Option.get ib.cur_func_decl in
   (* TODO: check mk_if_expr *)
   let then_bb = mk_bb ib in
   let else_bb = mk_bb ib in
@@ -187,7 +190,7 @@ let mk_if_expr ib cond then_gf else_gf =
 
   (* End *)
   set_bb ib exit_bb;
-  insert_phi exit_bb
+  Instruction.insert_phi fn exit_bb
     [
       (Iop_reg then_value, then_bb.b_label);
       (Iop_reg else_value, else_bb.b_label);

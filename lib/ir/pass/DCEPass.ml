@@ -38,13 +38,9 @@ let pass_fn am fn =
 
       List.iter mark_inst bb.b_phi_insts;
       List.iter mark_inst bb.b_insts;
-
       match bb.b_term with
-      | None -> failwith "expected a terminator instruction"
-      | Some term -> (
-          match term.i_kind with
-          | Iterm_jmpc (o, _, _) | Iterm_retv o -> mark_operand o
-          | Iterm_jmp _ | Iterm_ret | Iterm_unreachable -> ()))
+      | Iterm_jmpc (o, _, _) | Iterm_retv o -> mark_operand o
+      | Iterm_jmp _ | Iterm_ret | Iterm_unreachable -> ())
     fn.fn_blocks;
 
   let removed_insts = ref 0 in
@@ -68,7 +64,7 @@ let pass_fn am fn =
         List.filter
           (fun inst ->
             let keep =
-              may_have_side_effects inst.i_kind
+              Instruction.may_have_side_effects inst.i_kind
               || Hashtbl.mem used_names inst.i_name
             in
             if not keep then (

@@ -52,7 +52,7 @@ let pass_fn am fn =
               in
               (* It is important that the move instruction has the same name
                  as the PHI node. *)
-              let mov_inst = mk_inst pred phi.i_name mov_kind in
+              let mov_inst = Instruction.create fn phi.i_name mov_kind in
               pred.b_insts <- pred.b_insts @ [ mov_inst ])
             operands;
 

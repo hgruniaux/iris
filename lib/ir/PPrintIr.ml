@@ -130,7 +130,7 @@ let pp_instruction ppf inst =
         predecessors
 
 let pp_terminator ppf term =
-  match term.i_kind with
+  match term with
   | Iterm_unreachable -> Format.fprintf ppf "unreachable"
   | Iterm_ret -> Format.fprintf ppf "ret"
   | Iterm_retv op -> Format.fprintf ppf "ret %a" pp_operand op
@@ -152,9 +152,7 @@ let pp_bb ppf bb =
     (fun inst -> Format.fprintf ppf "  %a@." pp_instruction inst)
     bb.b_insts;
 
-  match bb.b_term with
-  | None -> failwith "expected terminator instruction"
-  | Some term -> Format.fprintf ppf "  %a@." pp_terminator term
+  Format.fprintf ppf "  %a@." pp_terminator bb.b_term
 
 let rec pp_params ppf (regs, types) =
   match (regs, types) with
@@ -202,9 +200,7 @@ let dump_dot funcdef =
       (fun inst -> Format.fprintf ppf "    %a\\l" pp_instruction inst)
       bb.b_insts;
 
-    match bb.b_term with
-    | None -> failwith "expected terminator instruction"
-    | Some term -> Format.fprintf ppf "    %a\\l" pp_terminator term
+    Format.fprintf ppf "    %a\\l" pp_terminator bb.b_term
   in
 
   Format.printf "digraph %s {@." funcdef.fn_name;

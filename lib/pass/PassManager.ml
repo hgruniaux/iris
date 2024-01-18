@@ -171,7 +171,7 @@ let create arch =
 (** Run all registered passes of [pm] on the given [ir_fn].
     The resulting generated and optimized Mr function is
     returned. The Mr function is ready for code emitting. *)
-let run_on_fn pm ir_fn =
+let run_on_fn pm ctx ir_fn =
   let am = AnalysisManager.create pm.pm_arch ir_fn in
 
   (* Run IR passes *)
@@ -183,7 +183,7 @@ let run_on_fn pm ir_fn =
     pm.pm_ir_fn_passes;
 
   (* Instruction selection, conversion IR -> Mr *)
-  let mir_fn = Backend.instsel_fn pm.pm_arch ir_fn in
+  let mir_fn = Backend.instsel_fn pm.pm_arch ctx ir_fn in
 
   (* Run Mr passes *)
   List.iter (fun pass -> pass mir_fn) pm.pm_mir_fn_passes;
@@ -194,7 +194,7 @@ let run_on_fn pm ir_fn =
 let run_on_ctx pm ctx =
   let callgraph = CallGraph.build ctx in
 
-  CallGraph.Dot.output_graph Stdlib.stdout callgraph;
+  (* CallGraph.Dot.output_graph Stdlib.stdout callgraph; *)
 
   (* Optimize functions in postfix-order of the callgraph. So, functions
      are generally optimized before being called (better for inlining passes,
@@ -202,7 +202,7 @@ let run_on_ctx pm ctx =
   let mfuncs = ref [] in
   CallGraph.Dfs.postfix
     (fun fn ->
-      if not fn.fn_is_external then mfuncs := run_on_fn pm fn :: !mfuncs)
+      if not fn.fn_is_external then mfuncs := run_on_fn pm ctx fn :: !mfuncs)
     callgraph;
 
   Backend.emit_ctx pm.pm_arch Format.std_formatter ctx !mfuncs

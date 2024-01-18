@@ -11,12 +11,12 @@ let epilog fn =
   insert_frame_dealloc insts fn;
   List.rev !insts
 
-let instsel_inst cc_info inst ~is_x64 =
+let instsel_inst ctx cc_info inst ~is_x64 =
   let r1 = inst.i_name in
   let insts = ref [] in
   (match inst.i_kind with
   | Iinst_cst cst -> (
-      match Hashtbl.find_opt inst.i_bb.b_func.fn_ctx.ctx_constants cst with
+      match Hashtbl.find_opt ctx.ctx_constants cst with
       (* We avoid to load an integer from the data section and instead
          directly encode it as an immediate. *)
       | Some (Icst_int imm) -> insert_mov insts r1 (Iop_imm imm)
@@ -65,7 +65,7 @@ let instsel_inst cc_info inst ~is_x64 =
 
 let instsel_term cc_info term =
   let insts = ref [] in
-  (match term.i_kind with
+  (match term with
   | Iterm_ret -> insert_ret insts cc_info
   | Iterm_retv value -> insert_ret_value insts cc_info value
   | Iterm_jmp l -> insert_jmp insts l
@@ -73,12 +73,12 @@ let instsel_term cc_info term =
   | Iterm_unreachable -> ());
   List.rev !insts
 
-let instsel_bb cc_info bb ~is_x64 =
+let instsel_bb ctx cc_info bb ~is_x64 =
   InstselCommon.instsel_bb bb
-    (instsel_inst cc_info ~is_x64)
+    (instsel_inst ctx cc_info ~is_x64)
     (instsel_term cc_info)
 
 (** Converts the given IR function to its MIR counterpart by doing x86 instruction selection. *)
-let instsel_fn ~is_x64 fn =
+let instsel_fn ctx ~is_x64 fn =
   let cc_info = if is_x64 then X86Mir.x64_cc_info else X86Mir.x86_cc_info in
-  InstselCommon.instsel_fn fn (instsel_bb cc_info ~is_x64)
+  InstselCommon.instsel_fn fn (instsel_bb ctx cc_info ~is_x64)

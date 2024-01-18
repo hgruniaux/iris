@@ -19,11 +19,10 @@ type calling_convention_info = {
 }
 
 let instsel_bb bb instsel_inst instsel_term =
-  let term_inst = Option.get bb.b_term in
   let mir_insts =
     List.fold_right
       (fun inst mir_insts -> instsel_inst inst @ mir_insts)
-      bb.b_insts (instsel_term term_inst)
+      bb.b_insts (instsel_term bb.b_term)
   in
   {
     Mr.mbb_label = bb.b_label;
