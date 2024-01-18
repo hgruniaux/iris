@@ -9,14 +9,18 @@ let map_operands f inst =
     | Iinst_call (fn, args) -> Iinst_call (fn, List.map f args)
     | Iinst_phi operands ->
         Iinst_phi (List.map (fun (o, label) -> (f o, label)) operands)
-    | _ -> inst.i_kind)
+    | Iinst_cst _ | Iinst_loadi _ | Iinst_load _ | Iinst_mov _ | Iinst_store _
+      ->
+        inst.i_kind)
 
 let map_term_operands f term =
   match term with
   | Iterm_jmpc (cond, tl, te) -> Iterm_jmpc (f cond, tl, te)
   | Iterm_retv value -> Iterm_retv (f value)
-  | Iterm_switch (index, otherwise, targets) -> Iterm_switch (f index, otherwise, targets)
+  | Iterm_switch (index, otherwise, targets) ->
+      Iterm_switch (f index, otherwise, targets)
   | Iterm_jmp _ | Iterm_ret | Iterm_unreachable -> term
+
 
 (** This pass propagates moves and constants to later operands.
     So, for example:
