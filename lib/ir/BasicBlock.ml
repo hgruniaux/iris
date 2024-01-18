@@ -2,6 +2,22 @@ open Ir
 
 type t = Ir.bb
 
+(** Creates a new basic block and adds it to [fn]. *)
+let create fn =
+  let label = Label.fresh () in
+  let bb =
+    {
+      b_label = label;
+      b_phi_insts = [];
+      b_insts = [];
+      b_term = Iterm_unreachable;
+      b_predecessors = Label.Set.empty;
+      b_successors = Label.Set.empty;
+    }
+  in
+  fn.fn_blocks <- Label.Map.add label bb fn.fn_blocks;
+  bb
+
 let iter_phis f bb = List.iter f bb.b_phi_insts
 let iter_insts f bb = List.iter f bb.b_insts
 

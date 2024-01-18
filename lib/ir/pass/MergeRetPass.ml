@@ -6,7 +6,7 @@ let is_ret term =
   match term with
   | Iterm_ret -> (true, None)
   | Iterm_retv v -> (true, Some v)
-  | Iterm_jmp _ | Iterm_jmpc _ | Iterm_unreachable -> (false, None)
+  | Iterm_jmp _ | Iterm_jmpc _ | Iterm_switch _ | Iterm_unreachable -> (false, None)
 
 (** This pass moves all occurrences of ret or retv instructions to a same and
     unique basic block.
@@ -17,7 +17,7 @@ let is_ret term =
 
     The SimplifyCFG pass should be called after, as this pass may mess up the CFG. *)
 let pass_fn am fn =
-  let ret_bb = Ir.mk_bb fn in
+  let ret_bb = BasicBlock.create fn in
 
   let predecessors = ref [] in
   Label.Map.iter

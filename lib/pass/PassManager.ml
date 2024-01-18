@@ -141,6 +141,8 @@ let create arch =
                       repeat_until_fixpoint DCEPass.pass_fn;
                     ]);
              ]);
+        LowerSwitchPass.pass_fn;
+        SimplifyCFGPass.pass_fn;
         ref_conditional_pass dump_ir (fun _ fn ->
             PPrintIr.dump_ir fn;
             false);

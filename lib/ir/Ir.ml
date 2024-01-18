@@ -129,6 +129,8 @@ and term =
       (** Same as Iterm_jmp but implements a conditional jump. If the given
           condition operand is non-zero, then it jumps to the first label,
           otherwise to the second. *)
+  | Iterm_switch of operand * label * (Z.t * label) list
+      (** A switch statement à la C. *)
 
 and inst_kind =
   | Iinst_cst of constant
@@ -270,22 +272,6 @@ let param_types_of fn =
   match fn.fn_type with
   | Ityp_func (_, param_tys) -> param_tys
   | _ -> assert false
-
-(** Creates a new basic block and adds it to [func]. *)
-let mk_bb func =
-  let label = Label.fresh () in
-  let bb =
-    {
-      b_label = label;
-      b_phi_insts = [];
-      b_insts = [];
-      b_term = Iterm_unreachable;
-      b_predecessors = Label.Set.empty;
-      b_successors = Label.Set.empty;
-    }
-  in
-  func.fn_blocks <- Label.Map.add label bb func.fn_blocks;
-  bb
 
 let is_entry_bb fn bb =
   match fn.fn_entry with

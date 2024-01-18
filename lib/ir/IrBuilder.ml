@@ -136,7 +136,7 @@ let set_bb ib bb = ib.cur_bb <- Some bb
 
 let mk_bb ib =
   let fn = Option.get ib.cur_func_decl in
-  let bb = Ir.mk_bb fn in
+  let bb = BasicBlock.create fn in
   BasicBlock.set_term fn bb Iterm_unreachable;
   bb
 

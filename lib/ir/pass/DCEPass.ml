@@ -39,7 +39,8 @@ let pass_fn am fn =
       List.iter mark_inst bb.b_phi_insts;
       List.iter mark_inst bb.b_insts;
       match bb.b_term with
-      | Iterm_jmpc (o, _, _) | Iterm_retv o -> mark_operand o
+      | Iterm_jmpc (o, _, _) | Iterm_retv o | Iterm_switch (o, _, _) ->
+          mark_operand o
       | Iterm_jmp _ | Iterm_ret | Iterm_unreachable -> ())
     fn.fn_blocks;
 

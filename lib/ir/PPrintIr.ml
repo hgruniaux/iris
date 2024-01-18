@@ -138,6 +138,11 @@ let pp_terminator ppf term =
   | Iterm_jmpc (op, then_bb, else_bb) ->
       Format.fprintf ppf "jmpc %a %a %a" pp_operand op pp_label then_bb pp_label
         else_bb
+  | Iterm_switch (index, otherwise, targets) ->
+      Format.fprintf ppf "switch %a %a [%a]" pp_operand index pp_label otherwise
+        (pp_list (fun ppf (value, label) ->
+             Format.fprintf ppf "(%a, %a)" Z.pp_print value pp_label label))
+        targets
 
 let pp_bb ppf bb =
   Format.fprintf ppf "%a:" pp_label bb.b_label;

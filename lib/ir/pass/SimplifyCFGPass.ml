@@ -15,12 +15,19 @@ let is_unreachable fn bb =
 let update_terminator fn bb old_label new_label =
   let replace_label label = if label = old_label then new_label else label in
   match bb.b_term with
-  | Iterm_jmp label -> BasicBlock.set_term fn bb (Iterm_jmp (replace_label label))
+  | Iterm_jmp label ->
+      BasicBlock.set_term fn bb (Iterm_jmp (replace_label label))
   | Iterm_jmpc (r, tl, el) ->
       let tl = replace_label tl in
       let el = replace_label el in
       if tl = el then BasicBlock.set_term fn bb (Iterm_jmp tl)
       else BasicBlock.set_term fn bb (Iterm_jmpc (r, tl, el))
+  | Iterm_switch (index, otherwise, targets) ->
+      let otherwise = replace_label otherwise in
+      let targets =
+        List.map (fun (value, label) -> (value, replace_label label)) targets
+      in
+      BasicBlock.set_term fn bb (Iterm_switch (index, otherwise, targets))
   | Iterm_ret | Iterm_retv _ | Iterm_unreachable -> ()
 
 let merge_two_bbs from_bb to_bb =

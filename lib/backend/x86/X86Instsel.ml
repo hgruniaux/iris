@@ -70,7 +70,8 @@ let instsel_term cc_info term =
   | Iterm_retv value -> insert_ret_value insts cc_info value
   | Iterm_jmp l -> insert_jmp insts l
   | Iterm_jmpc (r, tl, el) -> insert_jmp_conditional insts r tl el
-  | Iterm_unreachable -> ());
+  | Iterm_unreachable -> ()
+  | Iterm_switch _ -> failwith "TODO: implement switch in x86");
   List.rev !insts
 
 let instsel_bb ctx cc_info bb ~is_x64 =

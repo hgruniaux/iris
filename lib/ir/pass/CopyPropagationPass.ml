@@ -15,6 +15,7 @@ let map_term_operands f term =
   match term with
   | Iterm_jmpc (cond, tl, te) -> Iterm_jmpc (f cond, tl, te)
   | Iterm_retv value -> Iterm_retv (f value)
+  | Iterm_switch (index, otherwise, targets) -> Iterm_switch (f index, otherwise, targets)
   | Iterm_jmp _ | Iterm_ret | Iterm_unreachable -> term
 
 (** This pass propagates moves and constants to later operands.
