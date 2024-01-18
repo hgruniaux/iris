@@ -2,6 +2,7 @@
 
 (library
  (name LibIris)
+ (public_name iris)
  (libraries zarith ocamlgraph))
 
 (env
