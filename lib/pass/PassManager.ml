@@ -160,12 +160,12 @@ let create arch =
     pm_mir_fn_passes =
       [
         (* BEGIN REQUIRED *)
-        LoadParamsPass.pass_fn arch;
-        LowerCallsPass.pass_fn arch;
+        MrLoadParamsPass.pass_fn arch;
+        MrLowerCallsPass.pass_fn arch;
         reg_alloc_pass am arch;
-        pass_with_regalloc am (NaiveSpillerPass.pass_fn X86Regs.spill_regs);
-        pass_with_regalloc am RewriteVRegsPass.pass_fn;
-        PrologEpilogPass.pass_fn arch;
+        pass_with_regalloc am (MrNaiveSpillerPass.pass_fn X86Regs.spill_regs);
+        pass_with_regalloc am MrRewriteVRegsPass.pass_fn;
+        MrPrologEpilogPass.pass_fn arch;
         (* END REQUIRED *)
       ];
   }
