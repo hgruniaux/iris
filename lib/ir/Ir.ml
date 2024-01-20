@@ -51,8 +51,7 @@ type typ =
   | Ityp_struct of typ list
 (*
   | Ityp_array of typ
-  | Ityp_union of typ list
-  *)
+*)
 
 and ctx = {
   mutable ctx_funcs : fn list;
@@ -141,6 +140,7 @@ and inst_kind =
           address. The requested type must be a first-class type (such as integer
           but not a structure for example). *)
   | Iinst_store of reg * operand
+  | Iinst_loadfield of typ * reg * int
   | Iinst_binop of binop * operand * operand
   | Iinst_unop of unop * operand
   | Iinst_cmp of cmp * operand * operand
