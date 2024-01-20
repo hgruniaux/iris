@@ -85,7 +85,7 @@ let () =
     let ib = IrBuilder.create ctx in
     let _ = List.map (Compile.compile_func ib) f in
     let pm = PassManager.create !arch in
-    PassManager.run_on_ctx pm ctx
+    PassManager.run_on_ctx pm Stdlib.stdout ctx
     (* let compiled_funcs = List.map (fun fn -> compile_fn !arch fn) ir_funcs in
        Backend.emit_ctx !arch Format.std_formatter ctx compiled_funcs *)
   with

@@ -193,7 +193,7 @@ let run_on_fn pm ctx ir_fn =
   mir_fn
 
 (** Runs all registered passes of [pm] on the given IR context. *)
-let run_on_ctx pm ctx =
+let run_on_ctx pm out ctx =
   let callgraph = CallGraph.build ctx in
 
   (* CallGraph.Dot.output_graph Stdlib.stdout callgraph; *)
@@ -207,4 +207,5 @@ let run_on_ctx pm ctx =
       if not fn.fn_is_external then mfuncs := run_on_fn pm ctx fn :: !mfuncs)
     callgraph;
 
-  Backend.emit_ctx pm.pm_arch Format.std_formatter ctx !mfuncs
+  let formatter = Format.formatter_of_out_channel out in
+  Backend.emit_ctx pm.pm_arch formatter ctx !mfuncs
