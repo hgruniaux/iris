@@ -61,7 +61,7 @@ let mk_false ib = mk_int ib Z.zero
 let mk_string ib str = mk_const ib (Ir.get_string_constant ib.ctx str)
 
 (** Same as [mk_string] but add an explicit final NUL character to generate
-          NUL-terminated string. *)
+    NUL-terminated string. *)
 let mk_zstring ib str = mk_string ib (str ^ "\x00")
 
 let mk_inst ib kind =

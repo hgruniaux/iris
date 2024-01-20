@@ -22,6 +22,29 @@ type label = Label.t
 type imm = Z.t
 type constant = Constant.t
 
+type frame = {
+  frame_params : int;  (** Count of parameters stored in frame. *)
+  frame_locals : int;  (** Count of local variables stored in frame. *)
+}
+
+type calling_convention_info = {
+  cc_caller_saved : Reg.set;  (** The caller-saved (volatile) registers. *)
+  cc_callee_saved : Reg.set;  (** The callee-saved (non-volatile) registers. *)
+  cc_args_regs : Reg.t list;
+      (** A list of physical registers used to pass arguments, in order. *)
+  cc_args_regs_count : int;
+      (** Count of arguments that are passed by physical registers.
+          Must be the length of [cc_args_regs]. *)
+  cc_args_stack_ltr : bool;
+      (** True if the arguments in the stack are passed from left to right; false otherwise. *)
+  cc_return_reg : Reg.t option;
+      (** The physical register where the function's return value must be stored.
+      None if the return value is stored in the stack. *)
+  cc_caller_cleanup : bool;
+      (** True if the caller has to clean the stack (pop arguments passed in the stack if any),
+          false if it is the callee. *)
+}
+
 type operand =
   | Oreg of reg (* a register *)
   | Oframe of int (* a frame index (for register spilling for example) *)
@@ -29,8 +52,9 @@ type operand =
   | Oconst of constant (* a constant label *)
   | Olabel of label (* a basic block label (for jump instructions) *)
   | Ofunc of Ir.fn (* a function (for call instructions) *)
+  | Omem of reg * int * int
 
-type minst = {
+and minst = {
   mi_kind : string;
       (** The instruction's kind. It is an opaque string which the real meaning
           is only known by the backend that created this instruction. *)
@@ -48,12 +72,7 @@ type minst = {
 }
 (** Machine instruction. The exact format of instructions is specific to the backend. *)
 
-type frame = {
-  frame_params : int;  (** Count of parameters stored in frame. *)
-  frame_locals : int;  (** Count of local variables stored in frame. *)
-}
-
-type mbb = {
+and mbb = {
   mbb_label : Label.t;  (** The basic block label (unique name). *)
   mutable mbb_insts : minst list;
       (** The list of instructions of this basic block. *)
@@ -67,6 +86,7 @@ and mfn = {
   mfn_params : reg list;
   mfn_blocks : mbb Label.map;
   mfn_entry : label;
+  mfn_cc_info : calling_convention_info;
   mutable mfn_frame : frame option;
 }
 (** Machine function. *)

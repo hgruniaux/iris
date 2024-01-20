@@ -104,6 +104,8 @@ let emit_operand ctx ppf operand =
   | Oconst c -> emit_constant ppf c
   | Olabel l -> emit_label ppf l
   | Ofunc f -> Format.fprintf ppf "%s" f.fn_name
+  | Omem (base, shift, offset) ->
+      Format.fprintf ppf "[%d * %s + %d]" shift (name_of_reg ctx base) offset
 
 let rec emit_operand_list ctx ppf operands =
   match operands with
@@ -184,7 +186,8 @@ and emit_insts ctx ppf insts =
 and emit_bb ctx ppf bb =
   if is_bb_already_emitted ctx bb.mbb_label then ()
   else (
-    ctx.already_emitted_bbs <- Label.Set.add bb.mbb_label ctx.already_emitted_bbs;
+    ctx.already_emitted_bbs <-
+      Label.Set.add bb.mbb_label ctx.already_emitted_bbs;
     Format.fprintf ppf "%a:\n%a" emit_label bb.mbb_label (emit_insts ctx)
       bb.mbb_insts)
 

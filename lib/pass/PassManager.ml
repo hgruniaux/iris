@@ -7,19 +7,11 @@ let dump_reg_alloc = ref false
 let dump_mir = ref false
 let optimize = ref true
 
-type analysis_manager = {
-  mutable am_regalloc : RegAlloc.coloring option;
-  mutable am_liveinfo : Liveness.t option;
-  mutable am_interf : Interference.graph option;
-}
-
 type pass_manager = {
   pm_arch : Backend.arch;  (** The target backend CPU architecture. *)
-  pm_am : analysis_manager;
-      (** Manager that stores and handles all analysis information. *)
   pm_ir_fn_passes : (AnalysisManager.t -> Ir.fn -> bool) list;
       (** All passes that are run on IR functions. *)
-  pm_mir_fn_passes : (Mr.mfn -> unit) list;
+  pm_mir_fn_passes : (AnalysisManager.t -> Mr.mfn -> unit) list;
       (** All passes that are run on Mr functions. *)
 }
 
@@ -28,31 +20,6 @@ let run_pass am pass fn =
   let result = pass am fn in
   AnalysisManager.end_pass am;
   result
-
-let reg_alloc_pass am arch mir_fn =
-  let liveinfo = Liveness.compute mir_fn in
-  if !dump_liveinfo then Liveness.dump_liveinfo mir_fn liveinfo;
-  let regs = Mr.collect_pseudo_registers_in_fn mir_fn in
-  let interf = Interference.make regs liveinfo in
-  if !dump_interf then Interference.dump_interference interf;
-  let regalloc = RegAlloc.color arch interf in
-  if !dump_reg_alloc then RegAlloc.dump_colors regalloc;
-  (* Save info in the Analysis Manager *)
-  am.am_liveinfo <- Some liveinfo;
-  am.am_interf <- Some interf;
-  am.am_regalloc <- Some regalloc
-
-(** Creates a new pass that call [pass] on [fn] but with
-    liveinfo analysis information as first argument. *)
-let pass_with_liveinfo am pass fn = pass (Option.get am.am_liveinfo) fn
-
-(** Creates a new pass that call [pass] on [fn] but with
-    interference graph analysis information as first argument. *)
-let pass_with_interf am pass fn = pass (Option.get am.am_interf) fn
-
-(** Creates a new pass that call [pass] on [fn] but with
-    register allocation information as first argument. *)
-let pass_with_regalloc am pass fn = pass (Option.get am.am_regalloc) fn
 
 (** Runs the [passes] on the given [fn].
 
@@ -88,26 +55,14 @@ let conditional_pass f pass am fn = if f () then run_pass am pass fn else false
 let ref_conditional_pass r pass am fn =
   if !r then run_pass am pass fn else false
 
-(** Act as a pass that does nothing. It completly ignore the given [pass].
-
-    This is usefull for debugging and experimenting purposes to easily
-    disable a pass.
-
-    This meta-pass always returns false as it never changes the code. *)
-let ignore_pass pass am fn =
-  ignore pass;
-  ignore am;
-  ignore fn;
-  false
-
-(** Creates an analysis manager. *)
-let create_am () = { am_liveinfo = None; am_interf = None; am_regalloc = None }
+module X86LoadParamsPass = MrLoadParamsPass.Make (X86MrBuilder)
+module X86LowerCallsPass = MrLowerCallsPass.Make (X86MrBuilder)
+module X86NaiveSpillerPass = MrNaiveSpillerPass.Make (X86MrBuilder)
+module X86PrologEpilogPass = MrPrologEpilogPass.Make (X86MrBuilder)
 
 let create arch =
-  let am = create_am () in
   {
     pm_arch = arch;
-    pm_am = am;
     (*
       Some passes below are required for code generation
       or for other required passes. They are put between
@@ -160,12 +115,11 @@ let create arch =
     pm_mir_fn_passes =
       [
         (* BEGIN REQUIRED *)
-        MrLoadParamsPass.pass_fn arch;
-        MrLowerCallsPass.pass_fn arch;
-        reg_alloc_pass am arch;
-        pass_with_regalloc am (MrNaiveSpillerPass.pass_fn X86Regs.spill_regs);
-        pass_with_regalloc am MrRewriteVRegsPass.pass_fn;
-        MrPrologEpilogPass.pass_fn arch;
+        X86LoadParamsPass.pass_fn;
+        X86LowerCallsPass.pass_fn;
+        X86NaiveSpillerPass.pass_fn;
+        MrRewriteVRegsPass.pass_fn;
+        X86PrologEpilogPass.pass_fn;
         (* END REQUIRED *)
       ];
   }
@@ -185,12 +139,13 @@ let run_on_fn pm ctx ir_fn =
     pm.pm_ir_fn_passes;
 
   (* Instruction selection, conversion IR -> Mr *)
-  let mir_fn = Backend.instsel_fn pm.pm_arch ctx ir_fn in
+  let mr_fn = Backend.instsel_fn pm.pm_arch ctx ir_fn in
+  am.am_mr_fun <- Some mr_fn;
 
   (* Run Mr passes *)
-  List.iter (fun pass -> pass mir_fn) pm.pm_mir_fn_passes;
+  List.iter (fun pass -> pass am mr_fn) pm.pm_mir_fn_passes;
 
-  mir_fn
+  mr_fn
 
 (** Runs all registered passes of [pm] on the given IR context. *)
 let run_on_ctx pm out ctx =

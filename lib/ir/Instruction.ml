@@ -16,7 +16,8 @@ let create fn name kind =
 let may_have_side_effects inst_kind =
   match inst_kind with
   | Iinst_cst _ | Iinst_loadi _ -> false
-  | Iinst_load _ -> false (* Reading from memory has no side effects. *)
+  | Iinst_load _ | Iinst_loadfield _ ->
+      false (* Reading from memory has no side effects. *)
   | Iinst_store _ -> true (* But writting to memory, yes. *)
   (* Moves and PHI instructions do not have any side effects. *)
   | Iinst_mov _ -> false

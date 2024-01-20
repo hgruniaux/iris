@@ -110,6 +110,9 @@ let pp_instruction ppf inst =
   | Iinst_mov r -> Format.fprintf ppf "%a = %a" pp_register n pp_register r
   | Iinst_load (t, r) ->
       Format.fprintf ppf "%a = load %a %a" pp_register n pp_type t pp_register r
+  | Iinst_loadfield (t, r, i) ->
+      Format.fprintf ppf "%a = loadfield %a %a %d" pp_register n pp_type t
+        pp_register r i
   | Iinst_store (r, op) ->
       Format.fprintf ppf "store %a %a" pp_register r pp_operand op
   | Iinst_binop (binop, op1, op2) ->

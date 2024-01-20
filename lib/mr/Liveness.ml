@@ -2,10 +2,10 @@
  * registers in a Mr function declaration/basic blocks. Because the Mr
  * representation stores uses and defs sets, the Liveness analysis is target
  * independent.
-
+ *
  * These functions are mainly used by the Interference module to build the
  * interference graph later used for register allocation.
-
+ *
  * For performance reasons, we compute the liveness information at each
  * basic block boundaries using the Kildall algorithm. Inside basic blocks,
  * liveness information can be quickly determined from the boundary information
@@ -24,7 +24,7 @@ type bb_lifeinfo = {
 type t = (Mr.mbb, bb_lifeinfo) Hashtbl.t
 
 (** Returns the variables alive at input of the basic block [bb]
-     given the variables alive [live_out] at output. *)
+    given the variables alive [live_out] at output. *)
 let live_in_of_bb bb live_out =
   let insts_liveinfo = Hashtbl.create 17 in
   let rec loop live_in live_out insts =

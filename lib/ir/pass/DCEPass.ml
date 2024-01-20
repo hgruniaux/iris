@@ -24,7 +24,8 @@ let pass_fn am fn =
       let mark_inst inst =
         match inst.i_kind with
         | Iinst_loadi _ | Iinst_cst _ -> ()
-        | Iinst_mov r | Iinst_load (_, r) -> mark_reg r
+        | Iinst_mov r | Iinst_load (_, r) | Iinst_loadfield (_, r, _) ->
+            mark_reg r
         | Iinst_store (r, o) ->
             mark_reg r;
             mark_operand o

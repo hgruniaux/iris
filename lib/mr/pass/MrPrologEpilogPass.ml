@@ -1,9 +1,14 @@
-open Mr
+module type MrBuilder = sig
+  val prolog : Mr.mfn -> Mr.minst list
+  val epilog : Mr.mfn -> Mr.minst list
+end
 
-(** This pass inserts the prolog and epilog code of a function. Generally,
-    these two allocate and free the function's stack frame. *)
-let pass_fn arch fn =
-  let prolog = Backend.prolog arch fn in
-  let epilog = Backend.epilog arch fn in
-  MirPassUtils.insert_prolog fn prolog;
-  MirPassUtils.insert_epilog fn epilog
+module Make (Builder : MrBuilder) = struct
+  (** This pass inserts the prolog and epilog code of a function. Generally,
+      these two allocate and free the function's stack frame. *)
+  let pass_fn _ fn =
+    let prolog = Builder.prolog fn in
+    let epilog = Builder.epilog fn in
+    MrPassUtils.insert_prolog fn prolog;
+    MrPassUtils.insert_epilog fn epilog
+end

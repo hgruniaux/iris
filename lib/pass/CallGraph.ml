@@ -1,11 +1,16 @@
 open Graph
 
-(*
- * Static call graph of a IR context. It represents the calling relationships
- * between subroutines in the program:
- *   - the vertices are the Ir.fn instances of the context.
- *   - the edges are the caller -> callee calling relationship.
- *)
+(* Static call graph of a IR context. It represents the calling relationships
+   between subroutines in the program:
+     - the vertices are the Ir.fn instances of the context.
+     - the edges are the caller -> callee calling relationship. *)
+
+(* FIXME: Add "used but not called" edges. For example, if the function's
+          address is taken. It is important to add such edges to know when a
+          function is needed or not.
+
+          This can be easily implemented as an additional label to edges
+          that specify the edge kind. *)
 
 module Function = struct
   type t = Ir.fn

@@ -9,6 +9,8 @@ let pp_operand ppf op =
   | Oconst c -> Format.fprintf ppf "%a" pp_constant c
   | Olabel l -> Format.fprintf ppf "%a" pp_label l
   | Ofunc fn -> Format.fprintf ppf "%s" fn.fn_name
+  | Omem (base, shift, offset) ->
+      Format.fprintf ppf "[%d * %a + %d]" shift pp_register base offset
 
 let pp_inst ppf inst =
   Format.fprintf ppf "%s %a" inst.mi_kind (pp_list pp_operand) inst.mi_operands

@@ -1,95 +1,102 @@
 open Mr
+open MrPassUtils
 
-(** Returns the first [k] elements of [xs] and the remaining elements.
-    If [xs] is too small, then [xs] is returned. *)
-let rec firstk k xs =
-  match xs with
-  | [] -> ([], [])
-  | x :: xs ->
-      if k = 0 then ([], x :: xs)
-      else if k = 1 then ([ x ], xs)
-      else
-        let f, r = firstk (k - 1) xs in
-        (x :: f, r)
+module type MrBuilder = sig
+  val cc_info_of : Ir.fn -> Mr.calling_convention_info
+  val sizeof_operand : Mr.operand -> int
+  val is_call : Mr.minst -> bool
+  val mk_mov_operand : Mr.reg -> Mr.operand -> Mr.minst list
+  val mk_mov_reg : Mr.reg -> Mr.reg -> Mr.minst list
+  val mk_push_operand : Mr.operand -> Mr.minst list
+  val mk_pop_bytes : int -> Mr.minst list
+  val mk_pop_register : Mr.reg -> Mr.minst list
+  val mk_call : Ir.fn -> Reg.set -> Mr.minst list
+end
 
-(** Same as List.map2 but stop when l1 is empty (therefore both lists may
-        have a different length). *)
-let rec map2 f l1 l2 =
-  match (l1, l2) with
-  | [], _ -> []
-  | _, [] -> failwith "not enough elements in l2"
-  | x1 :: r1, x2 :: r2 -> f x1 x2 :: map2 f r1 r2
+let extract_reg_from = function
+  | Oreg r -> r
+  | _ -> failwith "expected a register"
 
-(** This pass lower call instructions by expliciting the calling convention.
-    In other words, it inserts move and push instructions to pass the
-    arguments, etc. *)
-let pass_fn arch fn =
-  let cc_info = Backend.cc_info arch in
-  MirPassUtils.map_insts fn (fun inst ->
-      if inst.mi_kind <> "call" then [ inst ]
-      else
-        let return_reg =
-          match List.hd inst.mi_operands with
-          | Oreg r -> r
-          | _ ->
-              failwith
-                "expected a register as the first operand of a call instruction"
-        in
-        let callee =
-          match List.hd (List.tl inst.mi_operands) with
-          | Ofunc f -> f
-          | _ ->
-              failwith
-                "expected a function as the second operand of a call \
-                 instruction"
-        in
-        let args = List.tl (List.tl inst.mi_operands) in
+let extract_callee_from = function
+  | Ofunc f -> f
+  | _ -> failwith "expected a function"
 
-        let args_in_regs, args_in_stack =
-          firstk cc_info.cc_args_regs_count args
-        in
+module Make (Builder : MrBuilder) = struct
+  (** This pass converts function calls (still high-level) to a lower-level
+    * representation.
+    *
+    * In particular, it explains the calling convention and its implementation.
+    * For example, it inserts move instructions to move the arguments of the
+    * call to physical registers or push instructions. It also inserts either
+    * a move instruction or a pop to retrieve the return value.
+    *
+    * After this pass, all function call instructions no longer take any arguments
+    * except the function name, and no longer explicitly store the return value.
+    * In other words, they have exactly the same semantics as the call instruction
+    * on CPUs. *)
+  let pass_fn _ fn =
+    MrPassUtils.map_insts fn (fun inst ->
+        if not (Builder.is_call inst) then [ inst ]
+        else
+          (* The (pseudo)-register where to store the return value. *)
+          let return_reg = extract_reg_from (List.hd inst.mi_operands) in
+          (* The callee function address. *)
+          let callee =
+            extract_callee_from (List.hd (List.tl inst.mi_operands))
+          in
+          (* The calling convention to use to call [callee]. *)
+          let cc_info = Builder.cc_info_of callee in
+          let args = List.tl (List.tl inst.mi_operands) in
 
-        (* Inserts the move instructions for the parameters lying in registers. *)
-        let mov_insts =
-          map2
-            (fun arg reg -> MirBuilder.mk_mov_operand arch reg arg)
-            args_in_regs cc_info.cc_args_regs
-        in
+          let args_in_regs, args_in_stack =
+            firstk cc_info.cc_args_regs_count args
+          in
 
-        (* Push instructions for the parameters lying in the stack. *)
-        let push_insts =
-          List.fold_right
-            (fun operand insts ->
-              MirBuilder.mk_push_operand arch operand :: insts)
-            args_in_stack []
-        in
+          (* All instructions that must be inserted just BEFORE the call instruction. *)
+          let precall_insts = ref [] in
+          (* All instructions that must be inserted just AFTER the call instruction. *)
+          let postcall_insts = ref [] in
 
-        (* Reverse push instructions if arguments are expected left to right. *)
-        let push_insts =
-          if cc_info.cc_args_stack_ltr then List.rev push_insts else push_insts
-        in
+          (* Inserts the move instructions for the parameters lying in registers. *)
+          lax_iter2
+            (fun arg_operand physical_reg ->
+              precall_insts :=
+                Builder.mk_mov_operand physical_reg arg_operand @ !precall_insts)
+            args_in_regs cc_info.cc_args_regs;
+          (* Move instructions are inserted in reverse, fix that. *)
+          precall_insts := List.rev !precall_insts;
 
-        let precall_insts = mov_insts @ push_insts in
+          (* Inserts the push instructions for the parameters lying in the stack. *)
+          let push_insts =
+            let insts =
+              List.fold_left
+                (fun insts operand -> Builder.mk_push_operand operand @ insts)
+                [] args_in_stack
+            in
+            (* Reverse instructions if arguments are expected left to right. *)
+            if cc_info.cc_args_stack_ltr then List.rev insts else insts
+          in
+          precall_insts := !precall_insts @ push_insts;
 
-        let reg_defs = ref (Reg.Set.elements cc_info.cc_caller_saved) in
+          let reg_defs = ref cc_info.cc_caller_saved in
 
-        let postcall_insts =
+          (* Retrieve the returned value either from a physical register
+             or the stack depending on the calling convention. *)
+          (if Ir.return_type_of callee <> Ir.Ityp_void then
+             match cc_info.cc_return_reg with
+             | Some r ->
+                 reg_defs := Reg.Set.add return_reg !reg_defs;
+                 postcall_insts := Builder.mk_mov_reg return_reg r
+             | None -> postcall_insts := Builder.mk_pop_register return_reg);
+
           (* Pop arguments from stack if required. *)
           (if cc_info.cc_caller_cleanup then
-             MirBuilder.mk_pop_many arch (List.length args_in_stack)
-           else [])
-          @
-          if Ir.return_type_of callee <> Ir.Ityp_void then
-            (* Retrieve the returned value either from a physical register
-               or the stack depending on the calling convention. *)
-            match cc_info.cc_return_reg with
-            | Some r ->
-                reg_defs := return_reg :: !reg_defs;
-                [ MirBuilder.mk_mov arch return_reg r ]
-            | None -> [ MirBuilder.mk_pop arch return_reg ]
-          else []
-        in
+             let byte_count =
+               List.fold_left
+                 (fun byte_count arg -> byte_count + Builder.sizeof_operand arg)
+                 0 args_in_stack
+             in
+             postcall_insts := !postcall_insts @ Builder.mk_pop_bytes byte_count);
 
-        precall_insts
-        @ Mr.mk_inst "call" [ Ofunc callee ] ~defs:!reg_defs ~uses:[]
-          :: postcall_insts)
+          !precall_insts @ Builder.mk_call callee !reg_defs @ !postcall_insts)
+end

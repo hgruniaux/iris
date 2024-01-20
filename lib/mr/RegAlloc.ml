@@ -255,24 +255,47 @@ and select all_colors g v =
   try
     let selected_color = find_available_color all_colors coloring v g in
     M.add v (Reg selected_color) coloring
-  with Not_found -> M.add v (Spilled 0) coloring
+  with Not_found -> M.add v (Spilled (-1)) coloring
 
-let select_frame_indices coloring =
-  let i = ref 0 in
-  M.map
-    (fun color ->
-      match color with
-      | Spilled _ ->
-          let color = Spilled !i in
-          incr i;
-          color
-      | _ -> color)
-    coloring
+(** Returns the smallest integer (positive) not in [s]. *)
+let find_smallest_available_int s =
+  if S.is_empty s then 0
+  else
+    let i = ref 0 in
+    let found = ref false in
+    while not !found do
+      if S.mem !i s then incr i else found := true
+    done;
+    !i
+
+let select_frame_indices g coloring =
+  let spilled_regs =
+    M.fold
+      (fun reg color spilled_regs ->
+        match color with Spilled _ -> reg :: spilled_regs | _ -> spilled_regs)
+      coloring []
+  in
+
+  List.fold_left
+    (fun coloring spilled_reg ->
+      (* Collect all already used frame indices in neighbours registers. *)
+      let taken_frame_indices =
+        S.filter_map
+          (fun reg ->
+            match M.find reg coloring with Spilled n -> Some n | _ -> None)
+          (M.find spilled_reg g).intfs
+      in
+
+      (* Select the smaller available frame index. *)
+      let frame_index = find_smallest_available_int taken_frame_indices in
+
+      M.add spilled_reg (Spilled frame_index) coloring)
+    coloring spilled_regs
 
 let color arch g =
   let all_colors = Backend.registers arch in
   let coloring = simplify all_colors g in
-  select_frame_indices coloring
+  select_frame_indices g coloring
 
 let dump_colors colors =
   Format.printf "Coloration (register allocation):@.";

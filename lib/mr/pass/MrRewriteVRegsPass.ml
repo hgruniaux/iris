@@ -1,15 +1,17 @@
 open Mr
 
-(** This pass modify the Mr to replace each occurrence of a pseudo register
-    to its selected physical register (result of register allocation). If the
-    pseudo register is spilled, this pass also inserts load and store
-    instructions to the stack. *)
-let pass_fn colors fn =
-  MirPassUtils.iter_insts fn (fun inst ->
+(** This pass rewrites all occurrences of a pseudo-register with the associated
+    physical register (after register allocation).
+
+    It is assumed that the code does not contain spilled pseudo-registers (they
+    must have been replaced by the spiller). *)
+let pass_fn am fn =
+  let colors = AnalysisManager.regalloc am in
+  MrPassUtils.iter_insts fn (fun inst ->
       let rewrite_reg r =
         match Reg.Map.find_opt r colors with
         | None -> Some r
-        | Some (RegAlloc.Spilled _) -> None
+        | Some (RegAlloc.Spilled _) -> assert false
         | Some (RegAlloc.Reg r) -> Some r
       in
 
@@ -18,7 +20,7 @@ let pass_fn colors fn =
         | Oreg r -> (
             match Reg.Map.find_opt r colors with
             | None -> o
-            | Some (RegAlloc.Spilled n) -> Oframe n
+            | Some (RegAlloc.Spilled _) -> assert false
             | Some (RegAlloc.Reg r) -> Oreg r)
         | _ -> o
       in

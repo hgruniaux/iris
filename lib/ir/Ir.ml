@@ -305,6 +305,11 @@ let compute_inst_type fn kind =
   | Iinst_load (t, addr) ->
       assert (type_of_reg addr = Ityp_ptr);
       t
+  | Iinst_loadfield (t, addr, index) -> (
+      assert (type_of_reg addr = Ityp_ptr);
+      match t with
+      | Ityp_struct fields -> List.nth fields index
+      | _ -> failwith "loadfield expect a pointer to a struct")
   | Iinst_cst cst -> (
       match Hashtbl.find_opt fn.fn_ctx.ctx_constants cst with
       | Some _ -> Ityp_ptr

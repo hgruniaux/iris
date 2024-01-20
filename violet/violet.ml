@@ -15,7 +15,6 @@ let set_arch arch_name =
     match arch_name with
     | "x86" -> Backend.Arch_x86
     | "x86-64" | "x64" -> Backend.Arch_x64
-    | "cpulm" -> Backend.Arch_cpulm
     | _ -> raise (Arg.Bad "unknown architecture name")
 
 let spec =

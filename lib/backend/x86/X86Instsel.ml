@@ -1,16 +1,6 @@
 open Ir
 open X86Mir
 
-let prolog fn =
-  let insts = ref [] in
-  insert_frame_alloc insts fn;
-  List.rev !insts
-
-let epilog fn =
-  let insts = ref [] in
-  insert_frame_dealloc insts fn;
-  List.rev !insts
-
 let instsel_inst ctx cc_info inst ~is_x64 =
   let r1 = inst.i_name in
   let insts = ref [] in
@@ -24,7 +14,9 @@ let instsel_inst ctx cc_info inst ~is_x64 =
       | None -> assert false)
   | Iinst_loadi imm -> insert_mov insts r1 (Iop_imm imm)
   | Iinst_mov r2 -> insert_mov_regs insts r1 r2
-  | Iinst_load _ -> failwith "TODO: instsel x86 load"
+  | Iinst_loadfield (_, addr, index) ->
+      insert_mov_mem insts r1 addr 1 (index * 8)
+  | Iinst_load (_, addr) -> insert_mov_mem insts r1 addr 1 0
   | Iinst_store _ -> failwith "TODO: instsel x86 store"
   | Iinst_binop (op, r2, r3) -> (
       match op with
@@ -75,11 +67,30 @@ let instsel_term cc_info term =
   List.rev !insts
 
 let instsel_bb ctx cc_info bb ~is_x64 =
-  InstselCommon.instsel_bb bb
-    (instsel_inst ctx cc_info ~is_x64)
-    (instsel_term cc_info)
+  let mir_insts =
+    List.fold_right
+      (fun inst mir_insts -> instsel_inst ctx cc_info ~is_x64 inst @ mir_insts)
+      bb.b_insts
+      (instsel_term cc_info bb.b_term)
+  in
+  {
+    Mr.mbb_label = bb.b_label;
+    Mr.mbb_insts = mir_insts;
+    Mr.mbb_predecessors = bb.b_predecessors;
+    Mr.mbb_successors = bb.b_successors;
+  }
 
-(** Converts the given IR function to its MIR counterpart by doing x86 instruction selection. *)
+(** Converts the given IR function to its MR counterpart by doing x86 instruction selection. *)
 let instsel_fn ctx ~is_x64 fn =
   let cc_info = if is_x64 then X86Mir.x64_cc_info else X86Mir.x86_cc_info in
-  InstselCommon.instsel_fn fn (instsel_bb ctx cc_info ~is_x64)
+  let mir_blocks =
+    Label.Map.map (instsel_bb ctx cc_info ~is_x64) fn.fn_blocks
+  in
+  {
+    Mr.mfn_name = fn.fn_name;
+    Mr.mfn_params = fn.fn_params;
+    Mr.mfn_blocks = mir_blocks;
+    Mr.mfn_entry = Option.get fn.fn_entry;
+    Mr.mfn_cc_info = cc_info;
+    Mr.mfn_frame = None;
+  }

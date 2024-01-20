@@ -1,4 +1,4 @@
-open InstselCommon
+open Mr
 
 let x86_cc_info =
   {
@@ -47,9 +47,8 @@ let use_from_operand op = match op with Ir.Iop_reg r -> [ r ] | _ -> []
 
 let insert_mov_regs insts r1 r2 =
   insts :=
-    Mr.mk_inst "mov"
-      [ Mr.Oreg r1; Mr.Oreg r2 ]
-      ~defs:[ r1 ] ~uses:[ r2 ] ~is_mov:true
+    Mr.mk_inst "mov" [ Mr.Oreg r1; Mr.Oreg r2 ] ~defs:[ r1 ] ~uses:[ r2 ]
+      ~is_mov:true
     :: !insts
 
 let insert_mov insts r1 r2 =
@@ -57,6 +56,13 @@ let insert_mov insts r1 r2 =
     Mr.mk_inst "mov"
       [ Mr.Oreg r1; from_ir_operand r2 ]
       ~defs:[ r1 ] ~uses:(use_from_operand r2) ~is_mov:true
+    :: !insts
+
+let insert_mov_mem insts r1 r_base shift offset =
+  insts :=
+    Mr.mk_inst "mov"
+      [ Mr.Oreg r1; Mr.Omem (r_base, shift, offset) ]
+      ~defs:[ r1 ] ~uses:[ r_base ]
     :: !insts
 
 let insert_mov_constant insts r1 cst =
@@ -257,7 +263,6 @@ let insert_frame_alloc insts fn =
   *)
   let frame = Option.get fn.Mr.mfn_frame in
   let n = Z.of_int (frame.frame_locals * 8) in
-  (* TODO: Allocate stack for local variables *)
   if !use_enter_inst then
     (* In practice, no one should use the enter instruction instead of push then mov.
        The former is way slower on modern CPUs. Still, for sake of completeness
@@ -296,9 +301,8 @@ let insert_frame_dealloc insts fn =
     insert_pop insts (Ir.Iop_reg X86Regs.ebp))
 
 let mk_mov r1 r2 =
-  Mr.mk_inst "mov"
-    [ Mr.Oreg r1; Mr.Oreg r2 ]
-    ~defs:[ r1 ] ~uses:[ r2 ] ~is_mov:true
+  Mr.mk_inst "mov" [ Mr.Oreg r1; Mr.Oreg r2 ] ~defs:[ r1 ] ~uses:[ r2 ]
+    ~is_mov:true
 
 let mk_mov_operand r1 operand =
   match operand with
@@ -315,5 +319,6 @@ let mk_pop_many arch count =
   (* TODO: fix item size * count *)
   ignore arch;
   let insts = ref [] in
-  insert_add insts X86Regs.esp (Ir.Iop_reg X86Regs.esp) (Ir.Iop_imm (Z.of_int count));
+  insert_add insts X86Regs.esp (Ir.Iop_reg X86Regs.esp)
+    (Ir.Iop_imm (Z.of_int count));
   List.rev !insts
