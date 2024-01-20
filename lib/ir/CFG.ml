@@ -1,14 +1,6 @@
 open Graph
 open Ir
 
-module BasicBlock = struct
-  type t = Ir.bb
-
-  let compare a b = Stdlib.compare a.Ir.b_label b.Ir.b_label
-  let equal a b = a.Ir.b_label = b.Ir.b_label
-  let hash fn = Hashtbl.hash fn.Ir.b_label
-end
-
 module G = Imperative.Digraph.Concrete (BasicBlock)
 
 module Display = struct

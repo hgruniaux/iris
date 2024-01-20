@@ -2,6 +2,10 @@ open Ir
 
 type t = Ir.bb
 
+let compare a b = Stdlib.compare a.Ir.b_label b.Ir.b_label
+let equal a b = a.Ir.b_label = b.Ir.b_label
+let hash fn = Hashtbl.hash fn.Ir.b_label
+
 (** Creates a new basic block and adds it to [fn]. *)
 let create fn =
   let label = Label.fresh () in
