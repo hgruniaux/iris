@@ -1,4 +1,5 @@
-FLAGS = --dump-ir
+VIOLET_FLAGS = --dump-ir
+VIOLET = dune exec violet/violet.exe
 
 all:
 	dune build
@@ -7,18 +8,18 @@ violet:
 	dune build violet
 
 debug:
-	dune exec _build/default/violet/violet.exe -- test.v --dump-ir --arch x86
+	$(VIOLET) -- test.v --dump-ir --arch x86
 
 test:
-	bash ./test/test.sh "dune exec _build/default/violet/violet.exe"
+	bash ./test/test.sh "$(VIOLET)"
 
 test_x86:
-	dune exec _build/default/violet/violet.exe -- test.v $(FLAGS) --arch x86 > test.s
+	$(VIOLET) -- test.v $(VIOLET_FLAGS) --arch x86 > test.s
 
 test_x64:
-	dune exec _build/default/violet/violet.exe -- test.v $(FLAGS) --arch x86-64 > test.s
+	$(VIOLET) -- test.v $(VIOLET_FLAGS) --arch x86-64 > test.s
 
 test_cpulm:
-	dune exec _build/default/violet/violet.exe -- test.v $(FLAGS) --arch cpulm > test.s
+	$(VIOLET) -- test.v $(VIOLET_FLAGS) --arch cpulm > test.s
 
 .PHONY: all LibIris violet test test_x86 test_x64 test_cpulm
