@@ -1,15 +1,12 @@
 opam-version: "2.0"
 name: "iris"
 version: "0.1"
-synopsis: "One-line description"
-description: """
-Longer description
-"""
+synopsis: "A x86_64 optimizing code generator."
 maintainer: "Hubert Gruniaux <hubert@gruniaux.com>"
 authors: "Hubert Gruniaux <hubert@gruniaux.com>"
 license: ""
 homepage: "https://github.com/hgruniaux/iris"
-bug-reports: ""
-dev-repo: ""
+bug-reports: "https://github.com/hgruniaux/iris/issues"
+dev-repo: "https://github.com/hgruniaux/iris"
 depends: [ "ocaml" "menhir" ]
 build: [[make]]
