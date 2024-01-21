@@ -5,6 +5,7 @@ let dump_liveinfo = ref false
 let dump_interf = ref false
 let dump_reg_alloc = ref false
 let dump_mir = ref false
+let dump_callgraph = ref false
 let optimize = ref false
 
 type pass_manager = {
@@ -151,7 +152,7 @@ let run_on_fn pm ctx ir_fn =
 let run_on_ctx pm out ctx =
   let callgraph = CallGraph.build ctx in
 
-  (* CallGraph.Dot.output_graph Stdlib.stdout callgraph; *)
+  if !dump_callgraph then CallGraph.Dot.output_graph Stdlib.stdout callgraph;
 
   (* Optimize functions in postfix-order of the callgraph. So, functions
      are generally optimized before being called (better for inlining passes,

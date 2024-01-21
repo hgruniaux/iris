@@ -29,12 +29,12 @@ module Display = struct
   let graph_attributes _ = []
   let default_vertex_attributes _ = []
   let vertex_name fn = fn.Ir.fn_name
-  let vertex_attributes _ = [ `Shape `Box ]
+
+  let vertex_attributes fn =
+    if fn.Ir.fn_is_external then [ `Shape `Diamond ] else [ `Shape `Box ]
+
   let default_edge_attributes _ = []
-
-  let edge_attributes (_, callee) =
-    if callee.Ir.fn_is_external then [ `Style `Dashed ] else []
-
+  let edge_attributes _ = []
   let get_subgraph _ = None
 end
 
