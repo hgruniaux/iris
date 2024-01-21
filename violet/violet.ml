@@ -7,8 +7,6 @@ let () = Printexc.record_backtrace true
 let usage = "usage: violet [options] file.v"
 let parse_only = ref false
 let arch = ref Backend.Arch_x64
-let dump_opt_ir = ref false
-let dump_opt_ir_dot = ref false
 
 let set_arch arch_name =
   arch :=
@@ -19,34 +17,13 @@ let set_arch arch_name =
 
 let spec =
   Arg.align
-    [
-      ("--parse-only", Arg.Set parse_only, "\tstop after parsing");
-      ( "--arch",
-        Arg.Symbol ([ "x86"; "x86-64"; "x64"; "cpulm" ], set_arch),
-        "\tselects the target architecture" );
-      ("--dump-ir", Arg.Set PassManager.dump_ir, "\tdumps generated IR");
-      ( "--dump-ir-dot",
-        Arg.Set PassManager.dump_ir_dot,
-        "\tdumps generated IR in Graphviz DOT format" );
-      ( "--dump-opt-ir",
-        Arg.Set dump_opt_ir,
-        "\tdumps generated IR after optimizations" );
-      ( "--dump-opt-ir-dot",
-        Arg.Set dump_opt_ir_dot,
-        "\tdumps generated IR after optimizations in Graphviz DOT format" );
-      ( "--dump-mir",
-        Arg.Set PassManager.dump_mir,
-        "\tdumps generated machine MIR" );
-      ( "--dump-liveinfo",
-        Arg.Set PassManager.dump_liveinfo,
-        "\tdumps the liveness analysis result" );
-      ( "--dump-interf",
-        Arg.Set PassManager.dump_interf,
-        "\tdumps the computed interference graph in Graphviz DOT format" );
-      ( "--dump-reg-alloc",
-        Arg.Set PassManager.dump_reg_alloc,
-        "\tdumps the register allocation result" );
-    ]
+    ([
+       ("--parse-only", Arg.Set parse_only, "\tstop after parsing");
+       ( "--arch",
+         Arg.Symbol ([ "x86"; "x86-64"; "x64"; "cpulm" ], set_arch),
+         "\tselects the target architecture" );
+     ]
+    @ CmdArgs.spec)
 
 let file =
   let file = ref None in
@@ -85,8 +62,6 @@ let () =
     let _ = List.map (Compile.compile_func ib) f in
     let pm = PassManager.create !arch in
     PassManager.run_on_ctx pm Stdlib.stdout ctx
-    (* let compiled_funcs = List.map (fun fn -> compile_fn !arch fn) ir_funcs in
-       Backend.emit_ctx !arch Format.std_formatter ctx compiled_funcs *)
   with
   | Lexing_error msg ->
       let range_start = Lexing.lexeme_start_p lb in

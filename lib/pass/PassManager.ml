@@ -5,7 +5,7 @@ let dump_liveinfo = ref false
 let dump_interf = ref false
 let dump_reg_alloc = ref false
 let dump_mir = ref false
-let optimize = ref true
+let optimize = ref false
 
 type pass_manager = {
   pm_arch : Backend.arch;  (** The target backend CPU architecture. *)
