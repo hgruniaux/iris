@@ -26,7 +26,7 @@ let pass_fn am fn =
         | Iinst_loadi _ | Iinst_cst _ -> ()
         | Iinst_mov r | Iinst_load (_, r) | Iinst_loadfield (_, r, _) ->
             mark_reg r
-        | Iinst_store (r, o) ->
+        | Iinst_store (r, o) | Iinst_storefield (_, r, _, o) ->
             mark_reg r;
             mark_operand o
         | Iinst_binop (_, o1, o2) | Iinst_cmp (_, o1, o2) ->

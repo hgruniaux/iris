@@ -115,6 +115,9 @@ let pp_instruction ppf inst =
         pp_register r i
   | Iinst_store (r, op) ->
       Format.fprintf ppf "store %a %a" pp_register r pp_operand op
+  | Iinst_storefield (t, r, i, v) ->
+      Format.fprintf ppf "%a = storefield %a %a %d %a" pp_register n pp_type t
+        pp_register r i pp_operand v
   | Iinst_binop (binop, op1, op2) ->
       Format.fprintf ppf "%a = %a %a %a" pp_register n pp_binop binop pp_operand
         op1 pp_operand op2

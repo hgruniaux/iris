@@ -49,9 +49,6 @@ type typ =
   | Ityp_ptr
   | Ityp_func of typ * typ list
   | Ityp_struct of typ list
-(*
-  | Ityp_array of typ
-*)
 
 and ctx = {
   mutable ctx_funcs : fn list;
@@ -141,6 +138,7 @@ and inst_kind =
           but not a structure for example). *)
   | Iinst_store of reg * operand
   | Iinst_loadfield of typ * reg * int
+  | Iinst_storefield of typ * reg * int * operand
   | Iinst_binop of binop * operand * operand
   | Iinst_unop of unop * operand
   | Iinst_cmp of cmp * operand * operand
@@ -327,6 +325,13 @@ let compute_inst_type fn kind =
   | Iinst_store (addr, _) ->
       assert (type_of_reg addr = Ityp_ptr);
       Ityp_void
+  | Iinst_storefield (t, addr, index, value) -> (
+      assert (type_of_reg addr = Ityp_ptr);
+      match t with
+      | Ityp_struct fields ->
+          assert (List.nth fields index = type_of_operand value);
+          Ityp_void
+      | _ -> failwith "storefield expect a pointer to a struct")
   | Iinst_call (fn, args) ->
       (* Check if the argument types are correct. *)
       List.iter2

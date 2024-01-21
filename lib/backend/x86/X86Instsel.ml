@@ -15,9 +15,11 @@ let instsel_inst ctx cc_info inst ~is_x64 =
   | Iinst_loadi imm -> insert_mov insts r1 (Iop_imm imm)
   | Iinst_mov r2 -> insert_mov_regs insts r1 r2
   | Iinst_loadfield (_, addr, index) ->
-      insert_mov_mem insts r1 addr 1 (index * 8)
-  | Iinst_load (_, addr) -> insert_mov_mem insts r1 addr 1 0
-  | Iinst_store _ -> failwith "TODO: instsel x86 store"
+      insert_load_mem insts r1 addr 1 (index * 8)
+  | Iinst_storefield (_, addr, index, value) ->
+      insert_store_mem insts addr 1 (index * 8) value
+  | Iinst_load (_, addr) -> insert_load_mem insts r1 addr 1 0
+  | Iinst_store (addr, value) -> insert_store_mem insts addr 1 0 value
   | Iinst_binop (op, r2, r3) -> (
       match op with
       | Ibinop_add -> insert_add insts r1 r2 r3

@@ -69,8 +69,12 @@ let mk_inst ib kind =
   add_inst ib rout kind
 
 let mk_mov ib r1 = mk_inst ib (Iinst_mov r1)
-let mk_load ib t r1 = mk_inst ib (Iinst_load (t, r1))
-let mk_store ib r1 r2 = mk_inst ib (Iinst_store (r1, Iop_reg r2))
+let mk_load ib t addr = mk_inst ib (Iinst_load (t, addr))
+let mk_store ib addr value = mk_inst ib (Iinst_store (addr, Iop_reg value))
+
+let mk_loadfield ib t addr field_index = mk_inst ib (Iinst_loadfield (t, addr, field_index))
+let mk_storefield ib t addr field_index value = mk_inst ib (Iinst_storefield (t, addr, field_index, value))
+
 let mk_neg ib r1 = mk_inst ib (Iinst_unop (Iunop_neg, Iop_reg r1))
 let mk_not ib r1 = mk_inst ib (Iinst_unop (Iunop_not, Iop_reg r1))
 

@@ -58,11 +58,19 @@ let insert_mov insts r1 r2 =
       ~defs:[ r1 ] ~uses:(use_from_operand r2) ~is_mov:true
     :: !insts
 
-let insert_mov_mem insts r1 r_base shift offset =
+let insert_load_mem insts r1 r_base shift offset =
   insts :=
     Mr.mk_inst "mov"
       [ Mr.Oreg r1; Mr.Omem (r_base, shift, offset) ]
       ~defs:[ r1 ] ~uses:[ r_base ]
+    :: !insts
+
+let insert_store_mem insts r_base shift offset value =
+  insts :=
+    Mr.mk_inst "mov"
+      [ Mr.Omem (r_base, shift, offset); from_ir_operand value ]
+      ~defs:[]
+      ~uses:(r_base :: use_from_operand value)
     :: !insts
 
 let insert_mov_constant insts r1 cst =
