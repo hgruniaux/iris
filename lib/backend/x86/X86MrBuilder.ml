@@ -6,6 +6,13 @@ let spiller_registers = X86Regs.spill_regs
 (** Returns the calling convention used for the given [fn]. *)
 let cc_info_of _ = X86Mir.x64_cc_info
 
+(** Returns the size, in bytes, of the given [typ]. *)
+let sizeof_type typ =
+  match typ with
+  | Ir.Ityp_void -> 0
+  | Ir.Ityp_int | Ir.Ityp_ptr | Ir.Ityp_func _ -> 8
+  | Ir.Ityp_struct fields -> List.length fields * 8
+
 (** Returns the size, in bytes, of the given [operand]. *)
 let sizeof_operand _ = 8
 
