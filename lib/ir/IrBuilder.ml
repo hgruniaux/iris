@@ -188,19 +188,21 @@ let mk_if_expr ib cond then_gf else_gf =
   (* Then branch *)
   set_bb ib then_bb;
   let then_value = then_gf ib in
+  let then_value_origin = Option.get ib.cur_bb in
   set_term ib (Iterm_jmp exit_bb.b_label);
 
   (* Else branch *)
   set_bb ib else_bb;
   let else_value = else_gf ib in
+  let else_value_origin = Option.get ib.cur_bb in
   set_term ib (Iterm_jmp exit_bb.b_label);
 
   (* End *)
   set_bb ib exit_bb;
   Instruction.insert_phi fn exit_bb
     [
-      (Iop_reg then_value, then_bb.b_label);
-      (Iop_reg else_value, else_bb.b_label);
+      (Iop_reg then_value, then_value_origin.b_label);
+      (Iop_reg else_value, else_value_origin.b_label);
     ]
 
 (** Lazy logical AND. *)
