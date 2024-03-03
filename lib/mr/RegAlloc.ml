@@ -259,14 +259,7 @@ and select all_colors g v =
 
 (** Returns the smallest integer (positive) not in [s]. *)
 let find_smallest_available_int s =
-  if S.is_empty s then 0
-  else
-    let i = ref 0 in
-    let found = ref false in
-    while not !found do
-      if S.mem !i s then incr i else found := true
-    done;
-    !i
+    let rec find i = if S.mem i s then find (i+1) else i in find 0
 
 let select_frame_indices g coloring =
   let spilled_regs =
