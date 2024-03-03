@@ -47,10 +47,10 @@ let spill_regs = [ r10; r11 ]
 
 (* We use the cdecl calling convention: *)
 
-(** The caller saved (non volatile) registers of the x86 architecture. *)
+(** The caller saved (volatile) registers of the x86 architecture. *)
 let x86_caller_saved = Mr.Reg.Set.of_list [ eax; ecx; edx ]
 
-(** The callee saved (volatile) registers of the x86 architecture. *)
+(** The callee saved (non volatile) registers of the x86 architecture. *)
 let x86_callee_saved = Mr.Reg.Set.of_list [ ebx; edi; esi; esp; ebp ]
 
 (** The registers used to pass arguments in the x86 architecture.
@@ -61,10 +61,10 @@ let x86_args_regs_count = List.length x86_args_regs
 
 (* We the System V AMD64 ABI calling convention for x86-64: *)
 
-(** The caller saved (non volatile) registers of the x86-64 architecture. *)
+(** The caller saved (volatile) registers of the x86-64 architecture. *)
 let x64_caller_saved = Mr.Reg.Set.of_list [ rax; rcx; rdx; rdi; rsi; r8; r9 ]
 
-(** The callee saved ( volatile) registers of the x86-64 architecture. *)
+(** The callee saved (non volatile) registers of the x86-64 architecture. *)
 let x64_callee_saved = Mr.Reg.Set.of_list [ rbx; rsp; rbp; r12; r13; r14; r15 ]
 
 (** The registers used to pass arguments in the x86-64 architecture. *)
