@@ -45,7 +45,7 @@ let live_in_of_bb bb live_out =
 
 (** Computes liveness info for the given function definition [funcdef]. *)
 let compute fn =
-  (* We implement the Kiskall algorithm: we use a worklist to iteratively
+  (* We implement the Kildall algorithm: we use a worklist to iteratively
      approximate the data flow equations. Moreover, we consider basic blocks
      as the base unit for the algorithm. *)
   let worklist = Queue.create () in
