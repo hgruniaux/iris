@@ -25,12 +25,11 @@ let x64_cc_info =
   }
 
 let from_ir_operand op =
-  match op with Ir.Iop_reg r -> Mr.Oreg r | Ir.Iop_imm i -> Mr.Oimm i
-
-let reg_of_operand op =
   match op with
-  | Ir.Iop_reg r -> r
-  | _ -> failwith "expected a register operand"
+  | Ir.Ival_reg r -> Mr.Oreg r
+  | Ir.Ival_int (_, i) -> Mr.Oimm i
+  | Ir.Ival_global g -> Mr.Oglobal g
+  | _ -> failwith "from_ir_operand: unsupported operand type"
 
 let uses_from_operands ops =
   let rec loop ops acc =
@@ -38,12 +37,12 @@ let uses_from_operands ops =
     | [] -> []
     | op :: remaining -> (
         match op with
-        | Ir.Iop_reg r -> loop remaining (r :: acc)
+        | Ir.Ival_reg r -> loop remaining (r :: acc)
         | _ -> loop remaining acc)
   in
   loop ops []
 
-let use_from_operand op = match op with Ir.Iop_reg r -> [ r ] | _ -> []
+let use_from_operand op = match op with Ir.Ival_reg r -> [ r ] | _ -> []
 
 let insert_mov_regs insts r1 r2 =
   insts :=
@@ -57,6 +56,16 @@ let insert_mov insts r1 r2 =
       [ Mr.Oreg r1; from_ir_operand r2 ]
       ~defs:[ r1 ] ~uses:(use_from_operand r2) ~is_mov:true
     :: !insts
+
+let insert_alloca insts r1 t =
+  let size = Machine_info.size_of t in
+
+  insts :=
+    Mr.mk_inst "sub"
+      [ Mr.Oreg X86Regs.esp; Mr.Oimm (Z.of_int size) ]
+      ~defs:[ X86Regs.esp ] ~uses:[ X86Regs.esp ]
+    :: !insts;
+  insert_mov_regs insts r1 X86Regs.esp
 
 let insert_load_mem insts r1 r_base shift offset =
   insts :=
@@ -73,16 +82,16 @@ let insert_store_mem insts r_base shift offset value =
       ~uses:(r_base :: use_from_operand value)
     :: !insts
 
-let insert_mov_constant insts r1 cst =
+let insert_mov_global insts r1 global =
   insts :=
-    Mr.mk_inst "mov" [ Mr.Oreg r1; Mr.Oconst cst ] ~defs:[ r1 ] ~uses:[]
+    Mr.mk_inst "mov" [ Mr.Oreg r1; Mr.Oglobal global ] ~defs:[ r1 ] ~uses:[]
     :: !insts
 
 let from_ir_operand_as_reg insts op =
   match op with
-  | Ir.Iop_reg r -> r
-  | Ir.Iop_imm _ ->
-      let tmp = Mr.Reg.fresh () in
+  | Ir.Ival_reg r -> r
+  | _ ->
+      let tmp = Mr.Reg.fresh (Ir.Value.type_of op) in
       insert_mov insts tmp op;
       tmp
 
@@ -146,10 +155,11 @@ let insert_shift_util insts kind r1 r2 r3 =
      an immediate). *)
   let r3_op =
     match r3 with
-    | Ir.Iop_reg r3 ->
+    | Ir.Ival_reg r3 ->
         insert_mov_regs insts cl r3;
         Mr.Oreg cl
-    | Ir.Iop_imm imm -> Mr.Oimm imm
+    | Ir.Ival_int (_, imm) -> Mr.Oimm imm
+    | _ -> failwith "insert_shift_util: unsupported operand type"
   in
   insts :=
     Mr.mk_inst kind [ Mr.Oreg r1; r3_op ] ~uses:[ r1; cl ]
@@ -180,6 +190,38 @@ let insert_cmp_util insts cc r1 r2 r3 =
       ~defs:[ r1; X86Regs.eflags ] ~uses:[ r1 ]
     :: !insts
 
+let insert_cast ~is_x64 insts r1 castop _ v =
+  match castop with
+  | Ir.Icast_bitcast ->
+      (* Just a move *)
+      insert_mov insts r1 v
+  | Ir.Icast_extend_s ->
+      (* Sign-extend *)
+      insts :=
+        Mr.mk_inst
+          (if is_x64 then "movsx" else "movsx")
+          [ Oreg r1; from_ir_operand v ]
+          ~defs:[ r1 ] ~uses:(use_from_operand v)
+        :: !insts
+  | Ir.Icast_extend_u ->
+      (* Zero-extend *)
+      insts :=
+        Mr.mk_inst
+          (if is_x64 then "movzx" else "movzx")
+          [ Oreg r1; from_ir_operand v ]
+          ~defs:[ r1 ] ~uses:(use_from_operand v)
+        :: !insts
+  | Ir.Icast_trunc ->
+      (* Truncate: just move the value, the upper bits are ignored *)
+      insert_mov insts r1 v
+  | Ir.Icast_promote | Ir.Icast_demote ->
+      failwith "insert_cast: float cast operations not implemented yet"
+  | Ir.Icast_fp2ui | Ir.Icast_fp2si | Ir.Icast_ui2fp | Ir.Icast_si2fp ->
+      failwith "insert_cast: float-integer cast operations not implemented yet"
+  | Ir.Icast_ptr2int | Ir.Icast_int2ptr ->
+      (* Just a move *)
+      insert_mov insts r1 v
+
 let insert_push insts r1 =
   insts :=
     Mr.mk_inst "push"
@@ -195,42 +237,51 @@ let insert_pop insts r1 =
       ~uses:[]
     :: !insts
 
-let insert_jmp insts l =
+let insert_jmp insts target_label target_args =
+  (* FIXME: handle block arguments *)
+  ignore target_args;
   insts :=
-    Mr.mk_inst "jmp" [ Olabel l ] ~defs:[] ~uses:[ X86Regs.eflags ] :: !insts
+    Mr.mk_inst "jmp" [ Olabel target_label ] ~defs:[] ~uses:[ X86Regs.eflags ]
+    :: !insts
 
-let insert_jmp_conditional insts cond tl el =
+let insert_jmp_conditional insts cond true_label true_args false_label
+    false_args =
+  (* FIXME: handle blocks arguments *)
+  ignore true_args;
+  ignore false_args;
+
   let cond = from_ir_operand_as_reg insts cond in
   insts :=
     Mr.mk_inst "cmp" [ Oreg cond; Oimm Z.zero ] ~defs:[ X86Regs.eflags ]
       ~uses:[ cond ]
     :: !insts;
   insts :=
-    (* The else_label and then_label are inversed below because we check
+    (* The true_args and else_label are inversed below because we check
        on zero (or false). *)
-    Mr.mk_inst "jz" [ Olabel el; Olabel tl ] ~defs:[] ~uses:[ X86Regs.eflags ]
+    Mr.mk_inst "jz"
+      [ Olabel false_label; Olabel true_label ]
+      ~defs:[] ~uses:[ X86Regs.eflags ]
     :: !insts
 
 let insert_call insts cc_info r1 callee args =
   insts :=
     Mr.mk_inst "call"
-      (Oreg r1 :: Ofunc callee :: args)
-      ~defs:(Mr.Reg.Set.elements cc_info.cc_caller_saved)
+      (Oreg r1 :: from_ir_operand callee :: args)
+      ~defs:(Mr.RegSet.elements cc_info.cc_caller_saved)
       ~uses:[]
     :: !insts
 
 let insert_ret insts cc_info =
   insts :=
     Mr.mk_inst "ret" [] ~defs:[]
-      ~uses:(Mr.Reg.Set.elements cc_info.cc_callee_saved)
+      ~uses:(Mr.RegSet.elements cc_info.cc_callee_saved)
     :: !insts
 
 (** Same as insert_ret but takes a value to return.
 
     This will insert either a mov or a push instruction (depending on the
-    calling convention) to pass to caller the given [value]. Moreover,
-    the uses field of the ret instruction is different from the one
-    returning void. *)
+    calling convention) to pass to caller the given [value]. Moreover, the uses
+    field of the ret instruction is different from the one returning void. *)
 let insert_ret_value insts cc_info value =
   let return_reg_use =
     match cc_info.cc_return_reg with
@@ -246,18 +297,20 @@ let insert_ret_value insts cc_info value =
   in
   insts :=
     Mr.mk_inst "ret" [] ~defs:[]
-      ~uses:(return_reg_use @ Mr.Reg.Set.elements cc_info.cc_callee_saved)
+      ~uses:(return_reg_use @ Mr.RegSet.elements cc_info.cc_callee_saved)
     :: !insts
 
-(** Should we use the x86 enter instruction to allocate the function's frame or push and mov?
-    By default, we use push and mov instructions instead (WAY faster on modern CPUs).
-    You should never use the enter instruction instead of push and mov, see:
-      - comment in insert_frame_alloc
-      - https://stackoverflow.com/a/67424971 *)
+(** Should we use the x86 enter instruction to allocate the function's frame or
+    push and mov? By default, we use push and mov instructions instead (WAY
+    faster on modern CPUs). You should never use the enter instruction instead
+    of push and mov, see:
+    - comment in insert_frame_alloc
+    - https://stackoverflow.com/a/67424971 *)
 let use_enter_inst = ref false
 
-(** Should we use the x86 leave instruction to deallocate the function's frame or pop and mov?
-    By default, we use mov and pop instructions instead (faster on modern CPUs). *)
+(** Should we use the x86 leave instruction to deallocate the function's frame
+    or pop and mov? By default, we use mov and pop instructions instead (faster
+    on modern CPUs). *)
 let use_leave_inst = ref false
 
 (* For the function prologue and epilogue (frame allocation and deallocation),
@@ -282,15 +335,16 @@ let insert_frame_alloc insts fn =
         ~uses:[ X86Regs.esp ]
       :: !insts
   else (
-    insert_push insts (Ir.Iop_reg X86Regs.ebp);
+    insert_push insts (Ir.Ival_reg X86Regs.ebp);
     insert_mov_regs insts X86Regs.ebp X86Regs.esp;
     if n > Z.zero then (
       (* Free stack space of local variables *)
-      insert_sub insts X86Regs.esp (Ir.Iop_reg X86Regs.esp) (Ir.Iop_imm n);
+      insert_sub insts X86Regs.esp (Ir.Ival_reg X86Regs.esp)
+        (Ir.Ival_int (Ityp_i64, n));
       (* Insert code to align the stack pointer to 16. *)
       (* TODO: The compiler should automatically align the stack. *)
-      insert_and insts X86Regs.esp (Ir.Iop_reg X86Regs.esp)
-        (Ir.Iop_imm (Z.neg (Z.of_int 16)))))
+      insert_and insts X86Regs.esp (Ir.Ival_reg X86Regs.esp)
+        (Ir.Ival_int (Ityp_i64, Z.neg (Z.of_int 16)))))
 
 let insert_frame_dealloc insts fn =
   (*
@@ -306,7 +360,7 @@ let insert_frame_dealloc insts fn =
       :: !insts
   else (
     insert_mov_regs insts X86Regs.esp X86Regs.ebp;
-    insert_pop insts (Ir.Iop_reg X86Regs.ebp))
+    insert_pop insts (Ir.Ival_reg X86Regs.ebp))
 
 let mk_mov r1 r2 =
   Mr.mk_inst "mov" [ Mr.Oreg r1; Mr.Oreg r2 ] ~defs:[ r1 ] ~uses:[ r2 ]
@@ -327,6 +381,6 @@ let mk_pop_many arch count =
   (* TODO: fix item size * count *)
   ignore arch;
   let insts = ref [] in
-  insert_add insts X86Regs.esp (Ir.Iop_reg X86Regs.esp)
-    (Ir.Iop_imm (Z.of_int count));
+  insert_add insts X86Regs.esp (Ir.Ival_reg X86Regs.esp)
+    (Ir.Ival_int (Ityp_i64, Z.of_int count));
   List.rev !insts

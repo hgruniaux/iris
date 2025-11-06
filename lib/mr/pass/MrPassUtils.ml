@@ -2,11 +2,11 @@ open Mr
 
 (** Calls [f] on each instruction of the Mr function [fn]. *)
 let iter_insts fn f =
-  Label.Map.iter (fun _ bb -> List.iter f bb.mbb_insts) fn.mfn_blocks
+  LabelMap.iter (fun _ bb -> List.iter f bb.mbb_insts) fn.mfn_blocks
 
 (* Transforms each instruction of the Mr function [fn] using [f]. *)
 let map_insts fn f =
-  Label.Map.iter
+  LabelMap.iter
     (fun _ bb ->
       bb.mbb_insts <-
         List.fold_right
@@ -40,7 +40,7 @@ let rec lax_iter2 f l1 l2 =
 
 (** Inserts the sequence of instruction [prolog] at the start of the Mr function [fn]. *)
 let insert_prolog fn prolog =
-  let entry_bb = Label.Map.find fn.mfn_entry fn.mfn_blocks in
+  let entry_bb = LabelMap.find fn.mfn_entry fn.mfn_blocks in
   entry_bb.mbb_insts <- prolog @ entry_bb.mbb_insts
 
 (** Inserts the sequence of instruction [epilog] just before each return instruction in
@@ -53,6 +53,6 @@ let insert_epilog fn epilog =
       insts
   in
 
-  Label.Map.iter
+  LabelMap.iter
     (fun _ bb -> bb.mbb_insts <- insert_before_ret bb.mbb_insts epilog)
     fn.mfn_blocks

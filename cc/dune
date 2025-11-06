@@ -1,0 +1,11 @@
+(include_subdirs unqualified)
+
+(executable
+ (name cc)
+ (libraries LibIris zarith))
+
+(ocamllex
+ (modules lexer))
+
+(menhir
+ (modules parser))

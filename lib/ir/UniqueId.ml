@@ -1,15 +1,11 @@
-type t = int
+type t = { id : int; name : string option }
 
 let fresh =
   let cpt = ref 0 in
   fun () ->
     incr cpt;
-    !cpt
+    { id = !cpt; name = None }
 
-let compare (x : t) (y : t) = Stdlib.compare x y
-
-module Map = Map.Make (Int)
-module Set = Set.Make (Int)
-
-type 'a map = 'a Map.t
-type set = Set.t
+(* FIXME: remove this *)
+let fresh_with_id ?(name = None) id = { id; name }
+let compare (x : t) (y : t) = Stdlib.compare x.id y.id

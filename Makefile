@@ -1,5 +1,6 @@
 VIOLET_FLAGS = --dump-ir
 VIOLET = dune exec violet/violet.exe
+CC = clang
 
 all:
 	dune build
@@ -11,7 +12,7 @@ debug:
 	$(VIOLET) -- test.v --dump-ir --arch x86
 
 test:
-	bash ./test/test.sh "$(VIOLET)"
+	bash ./test/test.sh "$(VIOLET)" $(CC)
 
 test_x86:
 	$(VIOLET) -- test.v $(VIOLET_FLAGS) --arch x86 > test.s

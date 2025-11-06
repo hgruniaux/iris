@@ -1,16 +1,16 @@
 open Mr
-open PPrintIr
+open Ir_printer
 
 let pp_operand ppf op =
   match op with
-  | Oreg r -> pp_register ppf r
+  | Oreg r -> Reg.pp_print ppf r
   | Oframe n -> Format.fprintf ppf "STACK[%d]" n
   | Oimm i -> Z.pp_print ppf i
-  | Oconst c -> Format.fprintf ppf "%a" pp_constant c
+  | Oglobal g -> Format.fprintf ppf "%a" pp_global g
   | Olabel l -> Format.fprintf ppf "%a" pp_label l
   | Ofunc fn -> Format.fprintf ppf "%s" fn.fn_name
   | Omem (base, shift, offset) ->
-      Format.fprintf ppf "[%d * %a + %d]" shift pp_register base offset
+      Format.fprintf ppf "[%d * %a + %d]" shift Reg.pp_print base offset
 
 let pp_inst ppf inst =
   Format.fprintf ppf "%s %a" inst.mi_kind (pp_list pp_operand) inst.mi_operands
@@ -22,16 +22,16 @@ let pp_bb pp_extra_bb pp_extra_inst ppf bb =
     bb.mbb_insts
 
 let pp_preds_and_succs ppf bb =
-  if not (Label.Set.is_empty bb.mbb_predecessors) then
+  if not (LabelSet.is_empty bb.mbb_predecessors) then
     Format.fprintf ppf "; preds = %a" pp_labelset bb.mbb_predecessors
 
 let pp_defs_and_uses ppf inst =
-  Format.fprintf ppf "; defs = {%a}, uses = {%a}" pp_registerset inst.mi_defs
-    pp_registerset inst.mi_uses
+  Format.fprintf ppf "; defs = {%a}, uses = {%a}" pp_regset inst.mi_defs
+    pp_regset inst.mi_uses
 
 let pp_fn pp_extra_bb pp_extra_inst ppf fn =
   Format.fprintf ppf "fn %s() {\n" fn.mfn_name;
-  Label.Map.iter
+  LabelMap.iter
     (fun _ bb -> pp_bb pp_extra_bb pp_extra_inst ppf bb)
     fn.mfn_blocks;
   Format.fprintf ppf "}"

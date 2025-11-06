@@ -7,8 +7,10 @@ open Mr
 open Interference
 
 (* Some module alias for easier typing. *)
-module M = Reg.Map
-module S = Reg.Set
+module M = RegMap
+module S = RegSet
+module IntSet = Set.Make (Int)
+module IntMap = Map.Make (Int)
 
 type color = Reg of reg | Spilled of int (* frame index *)
 type coloring = color M.t
@@ -16,8 +18,8 @@ type coloring = color M.t
 exception Found of reg
 exception Found2 of reg * reg
 
-(** Given a list of couples (value, cost), returns the value with the lowest cost.
-    The list must be non empty. *)
+(** Given a list of couples (value, cost), returns the value with the lowest
+    cost. The list must be non empty. *)
 let min_of_candidates l =
   fst
     (List.fold_left
@@ -25,9 +27,9 @@ let min_of_candidates l =
          if k < min_k then (v, k) else (min_v, min_k))
        (List.hd l) l)
 
-(** Finds a vertex of degree < [k], without any preference edges
-    (if [allow_prefs] is set to false), in [g].
-    If such vertex does not exist, [Not_found] is raised. *)
+(** Finds a vertex of degree < [k], without any preference edges (if
+    [allow_prefs] is set to false), in [g]. If such vertex does not exist,
+    [Not_found] is raised. *)
 let find_minimal_deg_vertex k g ~allow_prefs =
   let candidates =
     M.fold
@@ -43,15 +45,15 @@ let find_minimal_deg_vertex k g ~allow_prefs =
   in
   if candidates = [] then raise Not_found else min_of_candidates candidates
 
-(** Chooses a register in [g] that will be spilled. Ideally, we want to choose
-    a register that minimize a given cost (the spilling cost). *)
+(** Chooses a register in [g] that will be spilled. Ideally, we want to choose a
+    register that minimize a given cost (the spilling cost). *)
 let choose_spill_reg g =
   (* We avoid to select a register that was used to store the temporary
      result of a spilled register's load. *)
   fst (M.choose g)
 
-(** Returns a new interference graph based on [g] but without the
-    preferences edges connected to [v]. *)
+(** Returns a new interference graph based on [g] but without the preferences
+    edges connected to [v]. *)
 let forget_prefs_of v g =
   match M.find_opt v g with
   | None -> g (* nothing to forget *)
@@ -152,9 +154,9 @@ let find_george_edge k g =
     raise Not_found
   with Found2 (v1, v2) -> (v1, v2)
 
-(** Merge the vertices [v1] and [v2] of the graph [g]. The returned graph
-    does not contain anymore the vertex [v1] but the vertex [v2] now
-    has all the previous edges of [v1] plus the previous edges of [v2] (they are merged). *)
+(** Merge the vertices [v1] and [v2] of the graph [g]. The returned graph does
+    not contain anymore the vertex [v1] but the vertex [v2] now has all the
+    previous edges of [v1] plus the previous edges of [v2] (they are merged). *)
 let merge g v1 v2 =
   let replace s v1 v2 = if S.mem v1 s then S.add v2 (S.remove v1 s) else s in
 
@@ -175,10 +177,10 @@ let merge g v1 v2 =
     { intfs = S.union a1.intfs a2.intfs; prefs = S.union a1.prefs a2.prefs }
     (M.remove v1 g)
 
-(** Given a set of all available colors [all_colors], an actual partial [coloring],
-    a not colored vertex [v] in a given interference graph [g], returns a possible
-    color that can be attached to [v]. If [v] is a physical register,
-    then it is precolored and therefore [v] is returned itself.
+(** Given a set of all available colors [all_colors], an actual partial
+    [coloring], a not colored vertex [v] in a given interference graph [g],
+    returns a possible color that can be attached to [v]. If [v] is a physical
+    register, then it is precolored and therefore [v] is returned itself.
 
     If no possible color is found, then [Not_found] is raised. *)
 let find_available_color all_colors coloring v g =
@@ -259,7 +261,8 @@ and select all_colors g v =
 
 (** Returns the smallest integer (positive) not in [s]. *)
 let find_smallest_available_int s =
-    let rec find i = if S.mem i s then find (i+1) else i in find 0
+  let rec find i = if IntSet.mem i s then find (i + 1) else i in
+  find 0
 
 let select_frame_indices g coloring =
   let spilled_regs =
@@ -273,10 +276,12 @@ let select_frame_indices g coloring =
     (fun coloring spilled_reg ->
       (* Collect all already used frame indices in neighbours registers. *)
       let taken_frame_indices =
-        S.filter_map
-          (fun reg ->
-            match M.find reg coloring with Spilled n -> Some n | _ -> None)
-          (M.find spilled_reg g).intfs
+        S.fold
+          (fun reg set ->
+            match M.find reg coloring with
+            | Spilled n -> IntSet.add n set
+            | _ -> set)
+          (M.find spilled_reg g).intfs IntSet.empty
       in
 
       (* Select the smaller available frame index. *)
@@ -292,13 +297,11 @@ let color arch g =
 
 let dump_colors colors =
   Format.printf "Coloration (register allocation):@.";
-  Reg.Map.iter
+  RegMap.iter
     (fun reg color ->
       if Reg.is_pseudo reg then
         match color with
         | Reg color ->
-            Format.printf "%a -> %a@." PPrintIr.pp_register reg
-              PPrintIr.pp_register color
-        | Spilled n ->
-            Format.printf "%a -> Spilled %d@." PPrintIr.pp_register reg n)
+            Format.printf "%a -> %a@." Reg.pp_print reg Reg.pp_print color
+        | Spilled n -> Format.printf "%a -> Spilled %d@." Reg.pp_print reg n)
     colors

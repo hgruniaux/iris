@@ -1,9 +1,0 @@
-(executable
- (name violet)
- (libraries LibIris zarith))
-
-(ocamllex
- (modules Lexer))
-
-(menhir
- (modules Parser))

@@ -32,12 +32,12 @@ let rflags = eflags
 
 (* Available registers in the x86 architecture. *)
 let x86_registers =
-  Mr.Reg.Set.of_list [ eax; ebx; ecx; edx; esp; ebp; esi; edi ]
+  Mr.RegSet.of_list [ eax; ebx; ecx; edx; esp; ebp; esi; edi ]
 
 (* Available registers in the x86-64 architecture. *)
 let x64_registers =
-  Mr.Reg.Set.union x86_registers
-    (Mr.Reg.Set.of_list [ r8; r9; r12; r13; r14; r15 ])
+  Mr.RegSet.union x86_registers
+    (Mr.RegSet.of_list [ r8; r9; r12; r13; r14; r15 ])
 
 (** The register used to store the return value of a function (EAX/RAX). *)
 let return_reg = eax
@@ -48,10 +48,10 @@ let spill_regs = [ r10; r11 ]
 (* We use the cdecl calling convention: *)
 
 (** The caller saved (volatile) registers of the x86 architecture. *)
-let x86_caller_saved = Mr.Reg.Set.of_list [ eax; ecx; edx ]
+let x86_caller_saved = Mr.RegSet.of_list [ eax; ecx; edx ]
 
 (** The callee saved (non volatile) registers of the x86 architecture. *)
-let x86_callee_saved = Mr.Reg.Set.of_list [ ebx; edi; esi; esp; ebp ]
+let x86_callee_saved = Mr.RegSet.of_list [ ebx; edi; esi; esp; ebp ]
 
 (** The registers used to pass arguments in the x86 architecture.
     We pass all arguments by the stack. *)
@@ -62,10 +62,10 @@ let x86_args_regs_count = List.length x86_args_regs
 (* We the System V AMD64 ABI calling convention for x86-64: *)
 
 (** The caller saved (volatile) registers of the x86-64 architecture. *)
-let x64_caller_saved = Mr.Reg.Set.of_list [ rax; rcx; rdx; rdi; rsi; r8; r9 ]
+let x64_caller_saved = Mr.RegSet.of_list [ rax; rcx; rdx; rdi; rsi; r8; r9 ]
 
 (** The callee saved (non volatile) registers of the x86-64 architecture. *)
-let x64_callee_saved = Mr.Reg.Set.of_list [ rbx; rsp; rbp; r12; r13; r14; r15 ]
+let x64_callee_saved = Mr.RegSet.of_list [ rbx; rsp; rbp; r12; r13; r14; r15 ]
 
 (** The registers used to pass arguments in the x86-64 architecture. *)
 let x64_args_regs = [ rdi; rsi; rdx; rcx; r8; r9 ]
@@ -77,11 +77,11 @@ let () =
      should not be used anywhere. *)
   assert (
     List.for_all
-      (fun spill_reg -> not (Mr.Reg.Set.mem spill_reg x86_registers))
+      (fun spill_reg -> not (Mr.RegSet.mem spill_reg x86_registers))
       spill_regs);
   assert (
     List.for_all
-      (fun spill_reg -> not (Mr.Reg.Set.mem spill_reg x64_registers))
+      (fun spill_reg -> not (Mr.RegSet.mem spill_reg x64_registers))
       spill_regs);
   assert (
     List.for_all

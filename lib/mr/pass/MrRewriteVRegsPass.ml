@@ -9,7 +9,7 @@ let pass_fn am fn =
   let colors = AnalysisManager.regalloc am in
   MrPassUtils.iter_insts fn (fun inst ->
       let rewrite_reg r =
-        match Reg.Map.find_opt r colors with
+        match RegMap.find_opt r colors with
         | None -> Some r
         | Some (RegAlloc.Spilled _) -> assert false
         | Some (RegAlloc.Reg r) -> Some r
@@ -18,7 +18,7 @@ let pass_fn am fn =
       let rewrite_operand o =
         match o with
         | Oreg r -> (
-            match Reg.Map.find_opt r colors with
+            match RegMap.find_opt r colors with
             | None -> o
             | Some (RegAlloc.Spilled _) -> assert false
             | Some (RegAlloc.Reg r) -> Oreg r)
@@ -26,5 +26,5 @@ let pass_fn am fn =
       in
 
       inst.mi_operands <- List.map rewrite_operand inst.mi_operands;
-      inst.mi_uses <- Reg.Set.filter_map rewrite_reg inst.mi_uses;
-      inst.mi_defs <- Reg.Set.filter_map rewrite_reg inst.mi_defs)
+      inst.mi_uses <- RegSet.filter_map rewrite_reg inst.mi_uses;
+      inst.mi_defs <- RegSet.filter_map rewrite_reg inst.mi_defs)

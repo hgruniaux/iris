@@ -15,7 +15,7 @@ let spec =
     ( "--dump-reg-alloc",
       Arg.Set PassManager.dump_reg_alloc,
       "  dumps the register allocation result" );
-      ( "--dump-callgraph",
-        Arg.Set PassManager.dump_callgraph,
-        "  dumps the computed callgraph" );
+    ( "--dump-callgraph",
+      Arg.Set PassManager.dump_callgraph,
+      "  dumps the computed callgraph" );
   ]

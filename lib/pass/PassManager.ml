@@ -7,6 +7,7 @@ let dump_reg_alloc = ref false
 let dump_mir = ref false
 let dump_callgraph = ref false
 let optimize = ref false
+let only_middle_end = ref false
 
 type pass_manager = {
   pm_arch : Backend.arch;  (** The target backend CPU architecture. *)
@@ -24,22 +25,22 @@ let run_pass am pass fn =
 
 (** Runs the [passes] on the given [fn].
 
-    This meta-pass returns true if at least on pass of [passes] has
-    returned true. So, true is returned iff the code has changed. *)
+    This meta-pass returns true if at least on pass of [passes] has returned
+    true. So, true is returned iff the code has changed. *)
 let chain passes am fn =
   List.fold_left
     (fun changed pass -> run_pass am pass fn || changed)
     false passes
 
-(** Repeat a given [pass] until a fixpoint is reached. In other terms,
-    [pass] is executed until it returns true (code changed).
+(** Repeat a given [pass] until a fixpoint is reached. In other terms, [pass] is
+    executed until it returns true (code changed).
 
-    This can be composed with [chain] to create a chain of passes that
-    are run until a fixpoint is reached.
+    This can be composed with [chain] to create a chain of passes that are run
+    until a fixpoint is reached.
 
-    This meta-pass returns true if at least one call to [pass] has
-    changed the code; otherwise false is returned. So, true is returned
-    iff the code has changed. *)
+    This meta-pass returns true if at least one call to [pass] has changed the
+    code; otherwise false is returned. So, true is returned iff the code has
+    changed. *)
 let repeat_until_fixpoint pass am fn =
   let changed = ref false in
   while run_pass am pass fn do
@@ -47,12 +48,12 @@ let repeat_until_fixpoint pass am fn =
   done;
   !changed
 
-(** Creates a conditional pass that only call [pass] on [fn] if the function
-    [f] returns true. *)
+(** Creates a conditional pass that only call [pass] on [fn] if the function [f]
+    returns true. *)
 let conditional_pass f pass am fn = if f () then run_pass am pass fn else false
 
-(** Same as [conditional_pass], but takes a boolean reference instead
-    of a function. *)
+(** Same as [conditional_pass], but takes a boolean reference instead of a
+    function. *)
 let ref_conditional_pass r pass am fn =
   if !r then run_pass am pass fn else false
 
@@ -61,7 +62,7 @@ module X86LowerCallsPass = MrLowerCallsPass.Make (X86MrBuilder)
 module X86NaiveSpillerPass = MrNaiveSpillerPass.Make (X86MrBuilder)
 module X86PrologEpilogPass = MrPrologEpilogPass.Make (X86MrBuilder)
 
-let create arch =
+let create arch _optimize =
   {
     pm_arch = arch;
     (*
@@ -72,45 +73,8 @@ let create arch =
     *)
     pm_ir_fn_passes =
       [
-        ref_conditional_pass dump_ir (fun (_ : AnalysisManager.t) fn ->
-            PPrintIr.dump_ir fn;
-            false);
-        ref_conditional_pass optimize
-          (chain
-             [
-               SimplifyCFGPass.pass_fn;
-               repeat_until_fixpoint
-                 (chain
-                    [
-                      SimplifyCFGPass.pass_fn;
-                      CopyPropagationPass.pass_fn;
-                      InstCombinePass.pass_fn;
-                      repeat_until_fixpoint DCEPass.pass_fn;
-                    ]);
-               MergeRetPass.pass_fn;
-               repeat_until_fixpoint
-                 (chain
-                    [
-                      SimplifyCFGPass.pass_fn;
-                      CopyPropagationPass.pass_fn;
-                      InstCombinePass.pass_fn;
-                      repeat_until_fixpoint DCEPass.pass_fn;
-                    ]);
-             ]);
-        LowerSwitchPass.pass_fn;
-        SimplifyCFGPass.pass_fn;
-        ref_conditional_pass dump_ir (fun _ fn ->
-            PPrintIr.dump_ir fn;
-            false);
-        ref_conditional_pass dump_ir_dot (fun _ fn ->
-            PPrintIr.dump_dot fn;
-            false);
         (* BEGIN REQUIRED *)
-        VerifyPass.pass_fn;
         LowerPhiPass.pass_fn;
-        ref_conditional_pass dump_ir (fun _ fn ->
-            PPrintIr.dump_ir fn;
-            false);
         (* END REQUIRED *)
       ];
     pm_mir_fn_passes =
@@ -122,12 +86,13 @@ let create arch =
         MrRewriteVRegsPass.pass_fn;
         X86PrologEpilogPass.pass_fn;
         (* END REQUIRED *)
+        (fun _ mr_fn -> PPrintMr.dump_mir [ mr_fn ]);
       ];
   }
 
-(** Run all registered passes of [pm] on the given [ir_fn].
-    The resulting generated and optimized Mr function is
-    returned. The Mr function is ready for code emitting. *)
+(** Run all registered passes of [pm] on the given [ir_fn]. The resulting
+    generated and optimized Mr function is returned. The Mr function is ready
+    for code emitting. *)
 let run_on_fn pm ctx ir_fn =
   let am = AnalysisManager.create pm.pm_arch ir_fn in
 
@@ -163,5 +128,7 @@ let run_on_ctx pm out ctx =
       if not fn.fn_is_external then mfuncs := run_on_fn pm ctx fn :: !mfuncs)
     callgraph;
 
-  let formatter = Format.formatter_of_out_channel out in
-  Backend.emit_ctx pm.pm_arch formatter ctx !mfuncs
+  if !dump_ir then Ir.Printer.dump_module ctx
+  else
+    let formatter = Format.formatter_of_out_channel out in
+    Backend.emit_ctx pm.pm_arch formatter ctx !mfuncs

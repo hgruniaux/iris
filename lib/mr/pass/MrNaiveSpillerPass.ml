@@ -28,9 +28,9 @@ module Make (Builder : MrBuilder) = struct
 
     (* Generate load instructions for used spilled registers. *)
     inst.mi_uses <-
-      Reg.Set.map
+      RegSet.map
         (fun use ->
-          match Reg.Map.find_opt use colors with
+          match RegMap.find_opt use colors with
           | Some (RegAlloc.Spilled n) -> (
               match Hashtbl.find_opt mapping n with
               | Some r -> r
@@ -44,9 +44,9 @@ module Make (Builder : MrBuilder) = struct
 
     (* Generate store instructions for defined spilled registers. *)
     inst.mi_defs <-
-      Reg.Set.map
+      RegSet.map
         (fun use ->
-          match Reg.Map.find_opt use colors with
+          match RegMap.find_opt use colors with
           | Some (RegAlloc.Spilled n) -> (
               match Hashtbl.find_opt mapping n with
               | Some r ->
@@ -65,7 +65,7 @@ module Make (Builder : MrBuilder) = struct
       List.map
         (function
           | Oreg r as o -> (
-              match Reg.Map.find_opt r colors with
+              match RegMap.find_opt r colors with
               | Some (RegAlloc.Spilled n) -> Oreg (Hashtbl.find mapping n)
               | _ -> o)
           | o -> o)
@@ -90,7 +90,7 @@ module Make (Builder : MrBuilder) = struct
     let colors = AnalysisManager.regalloc am in
 
     let locals_count =
-      Reg.Map.fold
+      RegMap.fold
         (fun _ color locals_count ->
           match color with
           | RegAlloc.Spilled n -> max locals_count (n + 1)
@@ -107,7 +107,7 @@ module Make (Builder : MrBuilder) = struct
         };
 
     let tmp_regs = Builder.spiller_registers in
-    Label.Map.iter
+    LabelMap.iter
       (fun _ bb ->
         bb.mbb_insts <-
           List.fold_right

@@ -1,0 +1,76 @@
+open X64_inst
+open Ir
+
+let fresh_x64_reg () = failwith "unimplemented"
+let ir_reg_to_x64_reg ir_reg =
+  ignore ir_reg;
+  failwith "unimplemented"
+let insert_inst ctx inst =
+  ignore ctx;
+  ignore inst;
+  failwith "unimplemented"
+
+(** Creates a memory operand with only a base register. *)
+let mem_base b = { base = Some b; index = None; scale = 1; displacement = 0 }
+
+(** Creates a memory operand with only a displacement value. *)
+let mem_disp disp =
+  { base = None; index = None; scale = 1; displacement = disp }
+
+let instsel_value_as_reg_imm _ value =
+  match value with
+  | Ival_reg r -> X64_rmi_reg (ir_reg_to_x64_reg r)
+  | Ival_int (_, i) -> X64_rmi_imm i
+  | Ival_float _ -> failwith "Floating point values not supported in X64 yet"
+  | Ival_global _ -> failwith "Global values not supported in X64 yet"
+
+let instsel_addr_as_mem ctx addr =
+  match addr with
+  | Ival_reg r -> mem_base (ir_reg_to_x64_reg r)
+  | Ival_int (_, offset) ->
+      assert (Z.fits_int64_unsigned offset);
+      if Z.fits_int32 offset then
+        let offset_int = Z.to_int offset in
+        mem_disp offset_int
+      else (
+        assert (Z.fits_int64_unsigned offset);
+        let offset_reg = fresh_x64_reg () in
+        insert_inst ctx
+          (X64_inst_mov (X64_rom_reg offset_reg, X64_rmi_imm offset));
+        mem_base offset_reg)
+  | Ival_global _ -> failwith "Global addresses not supported in X64 yet"
+  | Ival_float _ -> failwith "Invalid address in X64"
+
+(** Lowers a [Iinst_value] instruction. *)
+let instsel_inst_value ctx dst value =
+  let x64_dst = ir_reg_to_x64_reg dst in
+  match value with
+  | Ival_reg r when r = dst -> ()
+  | Ival_reg r ->
+      insert_inst ctx
+        (X64_inst_mov (x64_dst, X64_rmi_reg (ir_reg_to_x64_reg r)))
+  | Ival_int (_, i) ->
+      insert_inst ctx (X64_inst_mov (X64_rom_reg x64_dst, X64_rmi_imm i))
+  | Ival_float _ -> failwith "Floating point values not supported in X64 yet"
+  | Ival_global _ -> failwith "Global values not supported in X64 yet"
+
+(** Lowers a [Iinst_load] instruction. *)
+let instsel_inst_load ctx dst addr =
+  let x64_dst = ir_reg_to_x64_reg dst in
+  let x64_addr = instsel_addr_as_mem ctx addr in
+  insert_inst ctx (X64_inst_mov (X64_rom_reg x64_dst, X64_rmi_mem x64_addr))
+
+(** Lowers a [Iinst_store] instruction. *)
+let instsel_inst_store ctx addr value =
+  let x64_addr = instsel_addr_as_mem ctx addr in
+  let x64_value = instsel_value_as_reg_imm ctx value in
+  insert_inst ctx (X64_inst_mov (X64_rom_mem x64_addr, x64_value))
+
+let instsel_inst ctx ir_inst =
+  match ir_inst.i_kind with
+  | Iinst_global _ -> failwith "Global instructions not supported in X64"
+  | Iinst_value value -> instsel_inst_value ctx ir_inst.i_name value
+  | Iinst_alloca _ -> failwith "Alloca instructions not supported in X64"
+  | Iinst_load (_, addr) -> instsel_inst_load ctx ir_inst.i_name addr
+  | Iinst_store (addr, value) -> instsel_inst_store ctx addr value
+  | _ -> failwith "Instruction kind not supported in X64 yet"

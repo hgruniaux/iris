@@ -8,7 +8,7 @@ module type MrBuilder = sig
   val mk_push_operand : Mr.operand -> Mr.minst list
   val mk_pop_bytes : int -> Mr.minst list
   val mk_pop_register : Mr.reg -> Mr.minst list
-  val mk_call : Ir.fn -> Mr.Reg.set -> Mr.minst list
+  val mk_call : Ir.fn -> Mr.RegSet.t -> Mr.minst list
 end
 
 (** This pass converts function calls (still high-level) to a lower-level

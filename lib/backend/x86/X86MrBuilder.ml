@@ -6,25 +6,24 @@ let spiller_registers = X86Regs.spill_regs
 (** Returns the calling convention used for the given [fn]. *)
 let cc_info_of _ = X86Mir.x64_cc_info
 
-(** Returns the size, in bytes, of the given [typ]. *)
-let sizeof_type typ =
-  match typ with
-  | Ir.Ityp_void -> 0
-  | Ir.Ityp_int | Ir.Ityp_ptr | Ir.Ityp_func _ -> 8
-  | Ir.Ityp_struct fields -> List.length fields * 8
-
 (** Returns the size, in bytes, of the given [operand]. *)
-let sizeof_operand _ = 8
+let sizeof_operand v =
+  match v with
+  | Oreg r -> Machine_info.size_of (Reg.type_of r)
+  | Oglobal _ | Olabel _ | Oimm _ | Ofunc _ | Oframe _ | Omem _ ->
+      Machine_info.size_of Ityp_ptr
 
 (** Checks if [minst] represents a x86 CALL instruction. *)
 let is_call minst = minst.mi_kind = "call"
 
-(** Creates a x86 MOV instruction moving the operand [op] to the register [reg]. *)
+(** Creates a x86 MOV instruction moving the operand [op] to the register [reg].
+*)
 let mk_mov_operand reg op =
   let use = match op with Oreg r -> [ r ] | _ -> [] in
   [ Mr.mk_inst "mov" [ Mr.Oreg reg; op ] ~defs:[ reg ] ~uses:use ~is_mov:true ]
 
-(** Creates a x86 MOV instruction moving the register [reg_in] to the register [reg_out]. *)
+(** Creates a x86 MOV instruction moving the register [reg_in] to the register
+    [reg_out]. *)
 let mk_mov_reg reg_out reg_in =
   [
     Mr.mk_inst "mov"
@@ -41,12 +40,12 @@ let mk_push_operand op =
 let mk_push_reg reg =
   [ Mr.mk_inst "push" [ Mr.Oreg reg ] ~defs:[ X86Regs.rsp ] ~uses:[ reg ] ]
 
-(** Creates a x86 instruction poping the given amount of bytes.
-    This lower to an ADD instruction. *)
+(** Creates a x86 instruction poping the given amount of bytes. This lower to an
+    ADD instruction. *)
 let mk_pop_bytes count =
   let insts = ref [] in
-  X86Mir.insert_add insts X86Regs.rsp (Ir.Iop_reg X86Regs.rsp)
-    (Ir.Iop_imm (Z.of_int count));
+  X86Mir.insert_add insts X86Regs.rsp (Ir.Ival_reg X86Regs.rsp)
+    (Ir.Ival_int (Ityp_i64, Z.of_int count));
   !insts
 
 (** Creates a x86 POP instruction poping the top element of stack and storing in
@@ -56,15 +55,17 @@ let mk_pop_register reg =
 
 (** Creates a x86 CALL instruction. *)
 let mk_call callee reg_defs =
-  [ mk_inst "call" [ Ofunc callee ] ~defs:(Reg.Set.elements reg_defs) ~uses:[] ]
+  [ mk_inst "call" [ Ofunc callee ] ~defs:(RegSet.elements reg_defs) ~uses:[] ]
 
-(** Creates a x86 instruction that loads the requested frame object into [reg]. *)
+(** Creates a x86 instruction that loads the requested frame object into [reg].
+*)
 let mk_frame_load reg frame_idx =
   [
     Mr.mk_inst "mov" [ Mr.Oreg reg; Mr.Oframe frame_idx ] ~defs:[ reg ] ~uses:[];
   ]
 
-(** Creates a x86 instruction that stores the given [reg] into the requested frame slot. *)
+(** Creates a x86 instruction that stores the given [reg] into the requested
+    frame slot. *)
 let mk_frame_store frame_idx reg =
   [
     Mr.mk_inst "mov" [ Mr.Oframe frame_idx; Mr.Oreg reg ] ~defs:[] ~uses:[ reg ];

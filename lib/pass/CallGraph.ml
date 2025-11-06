@@ -47,19 +47,33 @@ let build ctx =
   let g = create () in
 
   List.iter
-    (fun caller ->
-      (* Add caller to the call graph unconditionally. So, all functions
+    (fun global ->
+      match global.Ir.global_kind with
+      | Ir.Iglobal_function caller ->
+          (* Add caller to the call graph unconditionally. So, all functions
          are always included in the call graph even it they are never called. *)
-      add_vertex g caller;
+          add_vertex g caller;
 
-      Ir.Label.Map.iter
-        (fun _ bb ->
-          List.iter
-            (fun inst ->
-              match inst.Ir.i_kind with
-              | Ir.Iinst_call (callee, _) -> add_edge g caller callee
-              | _ -> ())
-            bb.Ir.b_insts)
-        caller.Ir.fn_blocks)
-    ctx.Ir.ctx_funcs;
+          Ir.LabelMap.iter
+            (fun _ bb ->
+              List.iter
+                (fun inst ->
+                  match inst.Ir.i_kind with
+                  | Ir.Iinst_call (callee, _) -> (
+                      match callee with
+                      | Ir.Ival_global global -> (
+                          match global.global_kind with
+                          | Ir.Iglobal_function callee ->
+                              add_edge g caller callee
+                          | _ ->
+                              failwith
+                                "CallGraph.build: Callee is not a function")
+                      | _ ->
+                          failwith
+                            "CallGraph.build: Indirect call not supported")
+                  | _ -> ())
+                bb.Ir.b_insts)
+            caller.Ir.fn_blocks
+      | _ -> ())
+    ctx.Ir.mod_globals;
   g

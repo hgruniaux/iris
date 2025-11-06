@@ -3,7 +3,9 @@
 (library
  (name LibIris)
  (public_name iris)
- (libraries zarith ocamlgraph))
+ (libraries zarith ocamlgraph str)
+ (inline_tests)
+ (preprocess (pps ppx_inline_test)))
 
 (env
   (dev

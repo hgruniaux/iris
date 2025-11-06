@@ -2,15 +2,15 @@ open Mr
 open MrPassUtils
 
 module type MrBuilder = sig
-  val cc_info_of : Ir.fn -> Mr.calling_convention_info
-  val sizeof_operand : Mr.operand -> int
-  val is_call : Mr.minst -> bool
-  val mk_mov_operand : Mr.reg -> Mr.operand -> Mr.minst list
-  val mk_mov_reg : Mr.reg -> Mr.reg -> Mr.minst list
-  val mk_push_operand : Mr.operand -> Mr.minst list
-  val mk_pop_bytes : int -> Mr.minst list
-  val mk_pop_register : Mr.reg -> Mr.minst list
-  val mk_call : Ir.fn -> Reg.set -> Mr.minst list
+  val cc_info_of : Ir.fn -> calling_convention_info
+  val sizeof_operand : operand -> int
+  val is_call : minst -> bool
+  val mk_mov_operand : reg -> operand -> minst list
+  val mk_mov_reg : reg -> reg -> minst list
+  val mk_push_operand : operand -> minst list
+  val mk_pop_bytes : int -> minst list
+  val mk_pop_register : reg -> minst list
+  val mk_call : Ir.fn -> RegSet.t -> minst list
 end
 
 let extract_reg_from = function
@@ -82,10 +82,10 @@ module Make (Builder : MrBuilder) = struct
 
           (* Retrieve the returned value either from a physical register
              or the stack depending on the calling convention. *)
-          (if Ir.return_type_of callee <> Ir.Ityp_void then
+          (if Ir.Function.return_type_of callee <> Ir.Ityp_unit then
              match cc_info.cc_return_reg with
              | Some r ->
-                 reg_defs := Reg.Set.add return_reg !reg_defs;
+                 reg_defs := RegSet.add return_reg !reg_defs;
                  postcall_insts := Builder.mk_mov_reg return_reg r
              | None -> postcall_insts := Builder.mk_pop_register return_reg);
 

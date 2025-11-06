@@ -1,0 +1,594 @@
+
+** Conflict (shift/reduce) in state 454.
+** Token involved: IDENT
+** This state is reached from translation_unit after reading:
+
+option(GNU_EXTENSION) function_definition1 LBRACKET attribute_specifier_sequence save_context FOR LPAREN
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+translation_unit 
+list(external_declaration) EOF 
+external_declaration list(external_declaration) 
+option(GNU_EXTENSION) function_definition 
+                      function_definition1 compound_statement 
+                                           LBRACKET list(block_item) RBRACKET 
+                                                    block_item list(block_item) 
+                                                    statement 
+                                                    unlabeled_statement 
+                                                    attribute_specifier_sequence scoped(primary_block) 
+                                                                                 save_context primary_block 
+                                                                                              iteration_statement 
+                                                                                              (?)
+
+** In state 454, looking ahead at IDENT, shifting is permitted
+** because of the following sub-derivation:
+
+FOR LPAREN option(expression) SEMI option(expression) SEMI option(expression) RPAREN secondary_block 
+           expression 
+           assignment_expression 
+           unary_expression EQ assignment_expression 
+           postfix_expression 
+           primary_expression 
+           var_name 
+           identifier VARIABLE 
+           . IDENT 
+
+** In state 454, looking ahead at IDENT, reducing production
+** list(attribute_specifier) ->
+** is permitted because of the following sub-derivation:
+
+FOR LPAREN declaration option(expression) SEMI option(expression) RPAREN secondary_block 
+           attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI // lookahead token appears because declaration_specifiers can begin with IDENT
+           list(attribute_specifier) // lookahead token is inherited
+           . 
+
+** Conflict (shift/reduce) in state 366.
+** Token involved: LBRACKET
+** This state is reached from translation_unit after reading:
+
+option(GNU_EXTENSION) attribute_specifier_sequence ENUM attribute_specifier_sequence option(general_identifier) COLON UNION attribute_specifier_sequence option(general_identifier)
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+translation_unit 
+list(external_declaration) EOF 
+external_declaration list(external_declaration) 
+option(GNU_EXTENSION) declaration 
+                      attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI 
+                                                   list_eq1(type_specifier_unique,declaration_specifier) 
+                                                   type_specifier_unique list(declaration_specifier) 
+                                                   enum_specifier 
+                                                   (?)
+
+** In state 366, looking ahead at LBRACKET, shifting is permitted
+** because of the following sub-derivation:
+
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET 
+                                                             enum_type_specifier 
+                                                             COLON specifier_qualifier_list 
+                                                                   list_eq1(type_specifier_unique,type_qualifier_or_alignment_specifier) 
+                                                                   type_specifier_unique list(type_qualifier_or_alignment_specifier) 
+                                                                   struct_or_union_specifier 
+                                                                   UNION attribute_specifier_sequence option(general_identifier) . LBRACKET list(member_declaration) RBRACKET 
+
+** In state 366, looking ahead at LBRACKET, reducing production
+** struct_or_union_specifier -> UNION attribute_specifier_sequence option(general_identifier)
+** is permitted because of the following sub-derivation:
+
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET // lookahead token appears
+                                                             enum_type_specifier // lookahead token is inherited
+                                                             COLON specifier_qualifier_list // lookahead token is inherited
+                                                                   list_eq1(type_specifier_unique,type_qualifier_or_alignment_specifier) // lookahead token is inherited
+                                                                   type_specifier_unique list(type_qualifier_or_alignment_specifier) // lookahead token is inherited because list(type_qualifier_or_alignment_specifier) can vanish
+                                                                   struct_or_union_specifier // lookahead token is inherited
+                                                                   UNION attribute_specifier_sequence option(general_identifier) . 
+
+** Conflict (shift/reduce) in state 365.
+** Token involved: IDENT
+** This state is reached from translation_unit after reading:
+
+option(GNU_EXTENSION) attribute_specifier_sequence UNION attribute_specifier_sequence
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+translation_unit 
+list(external_declaration) EOF 
+external_declaration list(external_declaration) 
+option(GNU_EXTENSION) declaration 
+                      (?)
+
+** In state 365, looking ahead at IDENT, shifting is permitted
+** because of the following sub-derivation:
+
+attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI 
+                             list_eq1(type_specifier_unique,declaration_specifier) 
+                             type_specifier_unique list(declaration_specifier) 
+                             struct_or_union_specifier 
+                             UNION attribute_specifier_sequence option(general_identifier) LBRACKET list(member_declaration) RBRACKET 
+                                                                general_identifier 
+                                                                typedef_name 
+                                                                identifier TYPE 
+                                                                . IDENT 
+
+** In state 365, looking ahead at IDENT, reducing production
+** option(general_identifier) ->
+** is permitted because of the following sub-derivation:
+
+attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI // lookahead token appears because init_declarator_list(declarator_varname) can begin with IDENT
+                             list_eq1(type_specifier_unique,declaration_specifier) // lookahead token is inherited
+                             type_specifier_unique list(declaration_specifier) // lookahead token is inherited because list(declaration_specifier) can vanish
+                             struct_or_union_specifier // lookahead token is inherited
+                             UNION attribute_specifier_sequence option(general_identifier) // lookahead token is inherited
+                                                                . 
+
+** Conflict (shift/reduce) in state 324.
+** Token involved: COMMA
+** This state is reached from translation_unit after reading:
+
+option(GNU_EXTENSION) attribute_specifier_sequence ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET enumerator COMMA enumerator
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+translation_unit 
+list(external_declaration) EOF 
+external_declaration list(external_declaration) 
+option(GNU_EXTENSION) declaration 
+                      attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI 
+                                                   list_eq1(type_specifier_unique,declaration_specifier) 
+                                                   type_specifier_unique list(declaration_specifier) 
+                                                   enum_specifier 
+                                                   (?)
+
+** In state 324, looking ahead at COMMA, reducing production
+** separated_nonempty_list(COMMA,enumerator) -> enumerator
+** is permitted because of the following sub-derivation:
+
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET // lookahead token appears because option(COMMA) can begin with COMMA
+                                                                                                  enumerator COMMA separated_nonempty_list(COMMA,enumerator) // lookahead token is inherited
+                                                                                                                   enumerator . 
+
+** In state 324, looking ahead at COMMA, shifting is permitted
+** because of the following sub-derivation:
+
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET 
+                                                                                                  enumerator COMMA separated_nonempty_list(COMMA,enumerator) 
+                                                                                                                   enumerator . COMMA separated_nonempty_list(COMMA,enumerator) 
+
+** Conflict (shift/reduce) in state 321.
+** Token involved: COMMA
+** This state is reached from translation_unit after reading:
+
+option(GNU_EXTENSION) attribute_specifier_sequence ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET enumerator
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+translation_unit 
+list(external_declaration) EOF 
+external_declaration list(external_declaration) 
+option(GNU_EXTENSION) declaration 
+                      attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI 
+                                                   list_eq1(type_specifier_unique,declaration_specifier) 
+                                                   type_specifier_unique list(declaration_specifier) 
+                                                   enum_specifier 
+                                                   (?)
+
+** In state 321, looking ahead at COMMA, reducing production
+** separated_nonempty_list_option_trailing(COMMA,enumerator) -> enumerator
+** is permitted because of the following sub-derivation:
+
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET // lookahead token appears because option(COMMA) can begin with COMMA
+                                                                                                  enumerator . 
+
+** In state 321, looking ahead at COMMA, shifting is permitted
+** because of the following sub-derivation:
+
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET 
+                                                                                                  enumerator . COMMA separated_nonempty_list(COMMA,enumerator) 
+
+** Conflict (shift/reduce) in state 314.
+** Token involved: LBRACKET
+** This state is reached from translation_unit after reading:
+
+option(GNU_EXTENSION) attribute_specifier_sequence ENUM attribute_specifier_sequence option(general_identifier) COLON ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier)
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+translation_unit 
+list(external_declaration) EOF 
+external_declaration list(external_declaration) 
+option(GNU_EXTENSION) declaration 
+                      attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI 
+                                                   list_eq1(type_specifier_unique,declaration_specifier) 
+                                                   type_specifier_unique list(declaration_specifier) 
+                                                   enum_specifier 
+                                                   (?)
+
+** In state 314, looking ahead at LBRACKET, shifting is permitted
+** because of the following sub-derivation:
+
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET 
+                                                             enum_type_specifier 
+                                                             COLON specifier_qualifier_list 
+                                                                   list_eq1(type_specifier_unique,type_qualifier_or_alignment_specifier) 
+                                                                   type_specifier_unique list(type_qualifier_or_alignment_specifier) 
+                                                                   enum_specifier 
+                                                                   ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) . LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET 
+
+** In state 314, looking ahead at LBRACKET, reducing production
+** enum_specifier -> ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier)
+** is permitted because of the following sub-derivation:
+
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET // lookahead token appears
+                                                             enum_type_specifier // lookahead token is inherited
+                                                             COLON specifier_qualifier_list // lookahead token is inherited
+                                                                   list_eq1(type_specifier_unique,type_qualifier_or_alignment_specifier) // lookahead token is inherited
+                                                                   type_specifier_unique list(type_qualifier_or_alignment_specifier) // lookahead token is inherited because list(type_qualifier_or_alignment_specifier) can vanish
+                                                                   enum_specifier // lookahead token is inherited
+                                                                   ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) . 
+
+** Conflict (shift/reduce) in state 138.
+** Token involved: IDENT
+** This state is reached from translation_unit after reading:
+
+option(GNU_EXTENSION) attribute_specifier_sequence declaration_specifiers_typedef direct_declarator LPAREN save_context attribute_specifier_sequence declaration_specifiers LPAREN save_context
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+translation_unit 
+list(external_declaration) EOF 
+external_declaration list(external_declaration) 
+option(GNU_EXTENSION) declaration 
+                      attribute_specifier_sequence declaration_specifiers_typedef init_declarator_list(declarator_typedefname) SEMI 
+                                                                                  loption(separated_nonempty_list(COMMA,init_declarator(declarator_typedefname))) 
+                                                                                  separated_nonempty_list(COMMA,init_declarator(declarator_typedefname)) 
+                                                                                  init_declarator(declarator_typedefname) 
+                                                                                  declarator_typedefname 
+                                                                                  declarator 
+                                                                                  direct_declarator 
+                                                                                  function_declarator attribute_specifier_sequence 
+                                                                                  direct_declarator LPAREN scoped(parameter_type_list) RPAREN 
+                                                                                                           save_context parameter_type_list 
+                                                                                                                        parameter_list save_context 
+                                                                                                                        parameter_declaration 
+                                                                                                                        (?)
+
+** In state 138, looking ahead at IDENT, shifting is permitted
+** because of the following sub-derivation:
+
+attribute_specifier_sequence declaration_specifiers declarator_varname 
+                                                    declarator 
+                                                    direct_declarator 
+                                                    LPAREN save_context declarator RPAREN 
+                                                                        direct_declarator 
+                                                                        general_identifier attribute_specifier_sequence 
+                                                                        typedef_name 
+                                                                        identifier TYPE 
+                                                                        . IDENT 
+
+** In state 138, looking ahead at IDENT, reducing production
+** list(attribute_specifier) ->
+** is permitted because of the following sub-derivation:
+
+attribute_specifier_sequence declaration_specifiers option(abstract_declarator) 
+                                                    abstract_declarator 
+                                                    direct_abstract_declarator 
+                                                    function_abstract_declarator attribute_specifier_sequence 
+                                                    LPAREN scoped(parameter_type_list) RPAREN 
+                                                           save_context parameter_type_list 
+                                                                        parameter_list save_context 
+                                                                        parameter_declaration 
+                                                                        attribute_specifier_sequence declaration_specifiers declarator_varname // lookahead token appears because declaration_specifiers can begin with IDENT
+                                                                        list(attribute_specifier) // lookahead token is inherited
+                                                                        . 
+
+** Conflict (shift/reduce) in state 78.
+** Tokens involved: VOLATILE RESTRICT CONST ALIGNAS
+** The following explanations concentrate on token VOLATILE.
+** This state is reached from translation_unit after reading:
+
+option(GNU_EXTENSION) attribute_specifier_sequence ENUM attribute_specifier_sequence option(general_identifier) COLON type_specifier_nonunique type_qualifier_or_alignment_specifier
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+translation_unit 
+list(external_declaration) EOF 
+external_declaration list(external_declaration) 
+option(GNU_EXTENSION) declaration 
+                      attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI 
+                                                   list_eq1(type_specifier_unique,declaration_specifier) 
+                                                   (?)
+
+** In state 78, looking ahead at VOLATILE, reducing production
+** list(type_qualifier_or_alignment_specifier) ->
+** is permitted because of the following sub-derivation:
+
+type_specifier_unique list(declaration_specifier) // lookahead token appears because list(declaration_specifier) can begin with VOLATILE
+enum_specifier // lookahead token is inherited
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) // lookahead token is inherited
+                                                             enum_type_specifier // lookahead token is inherited
+                                                             COLON specifier_qualifier_list // lookahead token is inherited
+                                                                   list_ge1(type_specifier_nonunique,type_qualifier_or_alignment_specifier) // lookahead token is inherited
+                                                                   type_specifier_nonunique list(type_qualifier_or_alignment_specifier) // lookahead token is inherited
+                                                                                            type_qualifier_or_alignment_specifier list(type_qualifier_or_alignment_specifier) // lookahead token is inherited
+                                                                                                                                  . 
+
+** In state 78, looking ahead at VOLATILE, shifting is permitted
+** because of the following sub-derivation:
+
+type_specifier_unique list(declaration_specifier) 
+enum_specifier 
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET 
+                                                             enum_type_specifier 
+                                                             COLON specifier_qualifier_list 
+                                                                   list_ge1(type_specifier_nonunique,type_qualifier_or_alignment_specifier) 
+                                                                   type_specifier_nonunique list(type_qualifier_or_alignment_specifier) 
+                                                                                            type_qualifier_or_alignment_specifier list(type_qualifier_or_alignment_specifier) 
+                                                                                                                                  type_qualifier_or_alignment_specifier list(type_qualifier_or_alignment_specifier) 
+                                                                                                                                  type_qualifier 
+                                                                                                                                  . VOLATILE 
+
+** Conflict (shift/reduce) in state 77.
+** Tokens involved: VOLATILE RESTRICT CONST ALIGNAS
+** The following explanations concentrate on token VOLATILE.
+** This state is reached from translation_unit after reading:
+
+option(GNU_EXTENSION) attribute_specifier_sequence ENUM attribute_specifier_sequence option(general_identifier) COLON type_specifier_nonunique
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+translation_unit 
+list(external_declaration) EOF 
+external_declaration list(external_declaration) 
+option(GNU_EXTENSION) declaration 
+                      attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI 
+                                                   list_eq1(type_specifier_unique,declaration_specifier) 
+                                                   (?)
+
+** In state 77, looking ahead at VOLATILE, reducing production
+** list(type_qualifier_or_alignment_specifier) ->
+** is permitted because of the following sub-derivation:
+
+type_specifier_unique list(declaration_specifier) // lookahead token appears because list(declaration_specifier) can begin with VOLATILE
+enum_specifier // lookahead token is inherited
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) // lookahead token is inherited
+                                                             enum_type_specifier // lookahead token is inherited
+                                                             COLON specifier_qualifier_list // lookahead token is inherited
+                                                                   list_ge1(type_specifier_nonunique,type_qualifier_or_alignment_specifier) // lookahead token is inherited
+                                                                   type_specifier_nonunique list(type_qualifier_or_alignment_specifier) // lookahead token is inherited
+                                                                                            . 
+
+** In state 77, looking ahead at VOLATILE, shifting is permitted
+** because of the following sub-derivation:
+
+type_specifier_unique list(declaration_specifier) 
+enum_specifier 
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET 
+                                                             enum_type_specifier 
+                                                             COLON specifier_qualifier_list 
+                                                                   list_ge1(type_specifier_nonunique,type_qualifier_or_alignment_specifier) 
+                                                                   type_specifier_nonunique list(type_qualifier_or_alignment_specifier) 
+                                                                                            type_qualifier_or_alignment_specifier list(type_qualifier_or_alignment_specifier) 
+                                                                                            type_qualifier 
+                                                                                            . VOLATILE 
+
+** Conflict (shift/reduce) in state 72.
+** Tokens involved: VOLATILE RESTRICT CONST ALIGNAS
+** The following explanations concentrate on token VOLATILE.
+** This state is reached from translation_unit after reading:
+
+option(GNU_EXTENSION) attribute_specifier_sequence ENUM attribute_specifier_sequence option(general_identifier) COLON type_specifier_unique type_qualifier_or_alignment_specifier
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+translation_unit 
+list(external_declaration) EOF 
+external_declaration list(external_declaration) 
+option(GNU_EXTENSION) declaration 
+                      attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI 
+                                                   list_eq1(type_specifier_unique,declaration_specifier) 
+                                                   (?)
+
+** In state 72, looking ahead at VOLATILE, reducing production
+** list(type_qualifier_or_alignment_specifier) ->
+** is permitted because of the following sub-derivation:
+
+type_specifier_unique list(declaration_specifier) // lookahead token appears because list(declaration_specifier) can begin with VOLATILE
+enum_specifier // lookahead token is inherited
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) // lookahead token is inherited
+                                                             enum_type_specifier // lookahead token is inherited
+                                                             COLON specifier_qualifier_list // lookahead token is inherited
+                                                                   list_eq1(type_specifier_unique,type_qualifier_or_alignment_specifier) // lookahead token is inherited
+                                                                   type_specifier_unique list(type_qualifier_or_alignment_specifier) // lookahead token is inherited
+                                                                                         type_qualifier_or_alignment_specifier list(type_qualifier_or_alignment_specifier) // lookahead token is inherited
+                                                                                                                               . 
+
+** In state 72, looking ahead at VOLATILE, shifting is permitted
+** because of the following sub-derivation:
+
+type_specifier_unique list(declaration_specifier) 
+enum_specifier 
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET 
+                                                             enum_type_specifier 
+                                                             COLON specifier_qualifier_list 
+                                                                   list_eq1(type_specifier_unique,type_qualifier_or_alignment_specifier) 
+                                                                   type_specifier_unique list(type_qualifier_or_alignment_specifier) 
+                                                                                         type_qualifier_or_alignment_specifier list(type_qualifier_or_alignment_specifier) 
+                                                                                                                               type_qualifier_or_alignment_specifier list(type_qualifier_or_alignment_specifier) 
+                                                                                                                               type_qualifier 
+                                                                                                                               . VOLATILE 
+
+** Conflict (shift/reduce) in state 71.
+** Tokens involved: VOLATILE RESTRICT CONST ALIGNAS
+** The following explanations concentrate on token VOLATILE.
+** This state is reached from translation_unit after reading:
+
+option(GNU_EXTENSION) attribute_specifier_sequence ENUM attribute_specifier_sequence option(general_identifier) COLON type_specifier_unique
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+translation_unit 
+list(external_declaration) EOF 
+external_declaration list(external_declaration) 
+option(GNU_EXTENSION) declaration 
+                      attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI 
+                                                   list_eq1(type_specifier_unique,declaration_specifier) 
+                                                   (?)
+
+** In state 71, looking ahead at VOLATILE, reducing production
+** list(type_qualifier_or_alignment_specifier) ->
+** is permitted because of the following sub-derivation:
+
+type_specifier_unique list(declaration_specifier) // lookahead token appears because list(declaration_specifier) can begin with VOLATILE
+enum_specifier // lookahead token is inherited
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) // lookahead token is inherited
+                                                             enum_type_specifier // lookahead token is inherited
+                                                             COLON specifier_qualifier_list // lookahead token is inherited
+                                                                   list_eq1(type_specifier_unique,type_qualifier_or_alignment_specifier) // lookahead token is inherited
+                                                                   type_specifier_unique list(type_qualifier_or_alignment_specifier) // lookahead token is inherited
+                                                                                         . 
+
+** In state 71, looking ahead at VOLATILE, shifting is permitted
+** because of the following sub-derivation:
+
+type_specifier_unique list(declaration_specifier) 
+enum_specifier 
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET 
+                                                             enum_type_specifier 
+                                                             COLON specifier_qualifier_list 
+                                                                   list_eq1(type_specifier_unique,type_qualifier_or_alignment_specifier) 
+                                                                   type_specifier_unique list(type_qualifier_or_alignment_specifier) 
+                                                                                         type_qualifier_or_alignment_specifier list(type_qualifier_or_alignment_specifier) 
+                                                                                         type_qualifier 
+                                                                                         . VOLATILE 
+
+** Conflict (shift/reduce) in state 57.
+** Token involved: IDENT
+** This state is reached from translation_unit after reading:
+
+option(GNU_EXTENSION) attribute_specifier_sequence ENUM attribute_specifier_sequence
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+translation_unit 
+list(external_declaration) EOF 
+external_declaration list(external_declaration) 
+option(GNU_EXTENSION) declaration 
+                      (?)
+
+** In state 57, looking ahead at IDENT, shifting is permitted
+** because of the following sub-derivation:
+
+attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI 
+                             list_eq1(type_specifier_unique,declaration_specifier) 
+                             type_specifier_unique list(declaration_specifier) 
+                             enum_specifier 
+                             ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET 
+                                                               general_identifier 
+                                                               typedef_name 
+                                                               identifier TYPE 
+                                                               . IDENT 
+
+** In state 57, looking ahead at IDENT, reducing production
+** option(general_identifier) ->
+** is permitted because of the following sub-derivation:
+
+attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI // lookahead token appears because init_declarator_list(declarator_varname) can begin with IDENT
+                             list_eq1(type_specifier_unique,declaration_specifier) // lookahead token is inherited
+                             type_specifier_unique list(declaration_specifier) // lookahead token is inherited because list(declaration_specifier) can vanish
+                             enum_specifier // lookahead token is inherited
+                             ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) // lookahead token is inherited because option(enum_type_specifier) can vanish
+                                                               . 
+
+** Conflict (shift/reduce) in state 45.
+** Token involved: LBRACKET
+** This state is reached from translation_unit after reading:
+
+option(GNU_EXTENSION) attribute_specifier_sequence ENUM attribute_specifier_sequence option(general_identifier) COLON STRUCT attribute_specifier_sequence option(general_identifier)
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+translation_unit 
+list(external_declaration) EOF 
+external_declaration list(external_declaration) 
+option(GNU_EXTENSION) declaration 
+                      attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI 
+                                                   list_eq1(type_specifier_unique,declaration_specifier) 
+                                                   type_specifier_unique list(declaration_specifier) 
+                                                   enum_specifier 
+                                                   (?)
+
+** In state 45, looking ahead at LBRACKET, shifting is permitted
+** because of the following sub-derivation:
+
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET 
+                                                             enum_type_specifier 
+                                                             COLON specifier_qualifier_list 
+                                                                   list_eq1(type_specifier_unique,type_qualifier_or_alignment_specifier) 
+                                                                   type_specifier_unique list(type_qualifier_or_alignment_specifier) 
+                                                                   struct_or_union_specifier 
+                                                                   STRUCT attribute_specifier_sequence option(general_identifier) . LBRACKET list(member_declaration) RBRACKET 
+
+** In state 45, looking ahead at LBRACKET, reducing production
+** struct_or_union_specifier -> STRUCT attribute_specifier_sequence option(general_identifier)
+** is permitted because of the following sub-derivation:
+
+ENUM attribute_specifier_sequence option(general_identifier) option(enum_type_specifier) LBRACKET separated_nonempty_list_option_trailing(COMMA,enumerator) option(COMMA) RBRACKET // lookahead token appears
+                                                             enum_type_specifier // lookahead token is inherited
+                                                             COLON specifier_qualifier_list // lookahead token is inherited
+                                                                   list_eq1(type_specifier_unique,type_qualifier_or_alignment_specifier) // lookahead token is inherited
+                                                                   type_specifier_unique list(type_qualifier_or_alignment_specifier) // lookahead token is inherited because list(type_qualifier_or_alignment_specifier) can vanish
+                                                                   struct_or_union_specifier // lookahead token is inherited
+                                                                   STRUCT attribute_specifier_sequence option(general_identifier) . 
+
+** Conflict (shift/reduce) in state 42.
+** Token involved: IDENT
+** This state is reached from translation_unit after reading:
+
+option(GNU_EXTENSION) attribute_specifier_sequence STRUCT attribute_specifier_sequence
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+translation_unit 
+list(external_declaration) EOF 
+external_declaration list(external_declaration) 
+option(GNU_EXTENSION) declaration 
+                      (?)
+
+** In state 42, looking ahead at IDENT, shifting is permitted
+** because of the following sub-derivation:
+
+attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI 
+                             list_eq1(type_specifier_unique,declaration_specifier) 
+                             type_specifier_unique list(declaration_specifier) 
+                             struct_or_union_specifier 
+                             STRUCT attribute_specifier_sequence option(general_identifier) LBRACKET list(member_declaration) RBRACKET 
+                                                                 general_identifier 
+                                                                 typedef_name 
+                                                                 identifier TYPE 
+                                                                 . IDENT 
+
+** In state 42, looking ahead at IDENT, reducing production
+** option(general_identifier) ->
+** is permitted because of the following sub-derivation:
+
+attribute_specifier_sequence declaration_specifiers init_declarator_list(declarator_varname) SEMI // lookahead token appears because init_declarator_list(declarator_varname) can begin with IDENT
+                             list_eq1(type_specifier_unique,declaration_specifier) // lookahead token is inherited
+                             type_specifier_unique list(declaration_specifier) // lookahead token is inherited because list(declaration_specifier) can vanish
+                             struct_or_union_specifier // lookahead token is inherited
+                             STRUCT attribute_specifier_sequence option(general_identifier) // lookahead token is inherited
+                                                                 . 
