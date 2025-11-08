@@ -1017,7 +1017,9 @@ and type_binary_assignment_expr ctx loc op lhs rhs =
   match op.pbinop_kind with
   | Pbinop_assign ->
       expect_modifiable_lvalue tlhs;
-      let trhs_converted = try_implicit_cast_to tlhs.texpr_type trhs in
+      let trhs_converted =
+        try_implicit_cast_to tlhs.texpr_type (lvalue_conversion trhs)
+      in
       mk_texpr (Texpr_binary (op, tlhs, trhs_converted)) tlhs.texpr_type loc
   | Pbinop_assign_add | Pbinop_assign_sub | Pbinop_assign_mul
   | Pbinop_assign_div | Pbinop_assign_mod | Pbinop_assign_and | Pbinop_assign_or
