@@ -1,5 +1,6 @@
 open Ir_base
 module Block = Ir_block
+module Function = Ir_function
 
 module Cfg = struct
   type t = fn
@@ -21,12 +22,12 @@ module Cfg = struct
 
   let is_directed = true
 
-  let _resolve_labels fn labels =
+  let resolve_labels fn labels =
     LabelSet.fold (fun l acc -> LabelMap.find l fn.fn_blocks :: acc) labels []
 
-  let pred fn block = Block.pred block |> _resolve_labels fn
+  let pred fn block = Block.pred block |> resolve_labels fn
   let pred_e fn block = List.map (fun b -> (b, block)) (pred fn block)
-  let succ fn block = Block.succ block |> _resolve_labels fn
+  let succ fn block = Block.succ block |> resolve_labels fn
   let succ_e fn block = List.map (fun b -> (block, b)) (succ fn block)
 
   let fold_vertex f fn acc =
@@ -63,3 +64,7 @@ module Leaderlist = Graph.Leaderlist.Make (Cfg)
 module Dfs = Graph.Traverse.Dfs (Cfg)
 module Bfs = Graph.Traverse.Bfs (Cfg)
 include Cfg
+
+let compute_idom fn =
+  let entry_block = Option.get (Function.entry_block fn) in
+  Dominator.compute_idom fn entry_block

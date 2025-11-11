@@ -212,9 +212,9 @@ and fn = {
 and bb = {
   block_label : label;
       (** The unique identifier of the basic block (per function). *)
-  mutable block_args : reg list;  (** Arguments that this basic block takes. *)
-  mutable b_phi_insts : inst list;
-  mutable b_insts : inst list;
+  mutable block_params : reg list;
+      (** Parameters that this basic block takes. *)
+  mutable block_insts : instruction list;
   mutable block_term : terminator;
       (** The terminator instruction of this basic block. *)
   mutable block_pred : LabelSet.t;
@@ -261,39 +261,37 @@ and inst = expression generic_inst
 
 (** An expression used to defined a register. *)
 and expression =
-  | Iinst_value of value  (** [Iinst_value value] creates a copy of [value]. *)
-  | Iinst_alloca of typ * int
-      (** [Iinst_alloca allocated_type alignment] allocates enough space on the
+  | Iexpr_value of value  (** [Iexpr_value value] creates a copy of [value]. *)
+  | Iexpr_alloca of typ * int
+      (** [Iexpr_alloca allocated_type alignment] allocates enough space on the
           stack for the given [allocated_type] with at least the specified
           [alignment]. *)
-  | Iinst_load of typ * value
-      (** [Iinst_load loaded_type addr] loads a value of the given [loaded_type]
+  | Iexpr_load of typ * value
+      (** [Iexpr_load loaded_type addr] loads a value of the given [loaded_type]
           from the memory address [addr]. *)
-  | Iinst_store of value * value  (** [Iinst_store addr value]. *)
-  | Iinst_cast of castop * typ * value
-      (** [Iinst_cast op target_type value] casts [value] to [target_type] using
+  | Iexpr_cast of castop * typ * value
+      (** [Iexpr_cast op target_type value] casts [value] to [target_type] using
           the specified [op]. It is assumed that the cast is well-defined. *)
-  | Iinst_ibinop of ibinop * value * value
-      (** [Iinst_ibinop op lhs rhs] performs an integer binary operation. *)
-  | Iinst_iunop of iunop * value
-      (** [Iinst_iunop op value] performs an integer unary operation. *)
-  | Iinst_icmp of icmpop * value * value
-      (** [Iinst_icmp op lhs rhs] performs an integer comparison between [lhs]
+  | Iexpr_ibinop of ibinop * value * value
+      (** [Iexpr_ibinop op lhs rhs] performs an integer binary operation. *)
+  | Iexpr_iunop of iunop * value
+      (** [Iexpr_iunop op value] performs an integer unary operation. *)
+  | Iexpr_icmp of icmpop * value * value
+      (** [Iexpr_icmp op lhs rhs] performs an integer comparison between [lhs]
           and [rhs]. The result is a boolean. *)
-  | Iinst_call of value * value list
-      (** [Iinst_call callee args] calls the function [callee] with the given
+  | Iexpr_call of value * value list
+      (** [Iexpr_call callee args] calls the function [callee] with the given
           [args]. The list of arguments must match the function's signature. *)
-  | Iinst_phi of (value * Label.t) list
 
 (** A instruction that execute some code in a basic block. Either it defines a
     register by evaluating an expression, or it stores a value into memory. *)
 and instruction =
-  | Istmt_def of reg * expression
-      (** [Istmt_def name expr] defines the register/name [name] with the given
+  | Iinst_def of reg * expression
+      (** [Iinst_def name expr] defines the register/name [name] with the given
           [expr]. The IR must be in SSA form, so [name] can not be defined more
           than once, and its definition must dominates all of its uses. *)
-  | Istmt_store of value * value
-      (** [Istmt_store addr value] stores the given [value] at the memory
+  | Iinst_store of value * value
+      (** [Iinst_store addr value] stores the given [value] at the memory
           address [addr]. *)
 
 (** Terminator instructions. A terminator instruction is an instruction that

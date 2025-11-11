@@ -186,48 +186,54 @@ module Make (F : Formatter) = struct
     let l = LabelSet.elements s in
     pp_list pp_label fmt l
 
-  let pp_instruction fmt inst =
-    let n = inst.i_name in
-    match inst.i_kind with
-    | Iinst_value v -> fprintf fmt "%a = %a" pp_register n pp_value v
-    | Iinst_alloca (t, align) ->
-        fprintf fmt "%a = %a %a, %a %a" pp_register n pp_keyword "alloca"
-          pp_type t pp_keyword "align"
+  let pp_expression fmt expression =
+    match expression with
+    | Iexpr_value v -> fprintf fmt "%a" pp_value v
+    | Iexpr_alloca (t, align) ->
+        fprintf fmt "%a %a, %a %a" pp_keyword "alloca" pp_type t pp_keyword
+          "align"
           (pp_with_color Constant pp_print_int)
           align
-    | Iinst_load (t, r) ->
-        fprintf fmt "%a = %a.%a %a" pp_register n pp_type t pp_keyword "load"
-          pp_value r
-    | Iinst_store (r, op) ->
-        fprintf fmt "%a %a, %a" pp_keyword "store" pp_value r pp_value op
-    | Iinst_ibinop (binop, v1, v2) ->
-        fprintf fmt "%a = %a.%a %a, %a" pp_register n pp_type (Value.type_of v1)
-          pp_ibinop binop pp_value v1 pp_value v2
-    | Iinst_iunop (unop, v) ->
-        fprintf fmt "%a = %a.%a %a" pp_register n pp_type (Value.type_of v)
-          pp_iunop unop pp_value v
-    | Iinst_icmp (cmp, v1, v2) ->
-        fprintf fmt "%a = %a.%a %a, %a" pp_register n pp_type (Value.type_of v1)
-          pp_icmp cmp pp_value v1 pp_value v2
-    | Iinst_cast (Icast_bitcast, t, v) ->
-        fprintf fmt "%a = %a %a %a %a" pp_register n pp_castop Icast_bitcast
-          pp_value v pp_keyword "to" pp_type t
-    | Iinst_cast (castop, t, v) ->
-        fprintf fmt "%a = %a.%a %a" pp_register n pp_type t pp_castop castop
-          pp_value v
-    | Iinst_call (callee, args) ->
-        fprintf fmt "%a = %a %a(@[%a@])" pp_register n pp_keyword "call"
-          pp_value callee (pp_list pp_value) args
-    | Iinst_phi predecessors ->
-        fprintf fmt "%a = %a [@[%a@]]" pp_register n pp_keyword "phi"
-          (pp_list (fun fmt (op, label) ->
-               fprintf fmt "@[(%a,@ %a)@]" pp_value op pp_label label))
-          predecessors
+    | Iexpr_load (t, r) ->
+        fprintf fmt "%a.%a %a" pp_type t pp_keyword "load" pp_value r
+    | Iexpr_ibinop (binop, v1, v2) ->
+        fprintf fmt "%a.%a %a, %a" pp_type (Value.type_of v1) pp_ibinop binop
+          pp_value v1 pp_value v2
+    | Iexpr_iunop (unop, v) ->
+        fprintf fmt "%a.%a %a" pp_type (Value.type_of v) pp_iunop unop pp_value
+          v
+    | Iexpr_icmp (cmp, v1, v2) ->
+        fprintf fmt "%a.%a %a, %a" pp_type (Value.type_of v1) pp_icmp cmp
+          pp_value v1 pp_value v2
+    | Iexpr_cast (Icast_bitcast, t, v) ->
+        fprintf fmt "%a %a %a %a" pp_castop Icast_bitcast pp_value v pp_keyword
+          "to" pp_type t
+    | Iexpr_cast (castop, t, v) ->
+        fprintf fmt "%a.%a %a" pp_type t pp_castop castop pp_value v
+    | Iexpr_call (callee, args) ->
+        fprintf fmt "%a %a(@[%a@])" pp_keyword "call" pp_value callee
+          (pp_list pp_value) args
+
+  let pp_instruction fmt instruction =
+    match instruction with
+    | Iinst_def (n, expr) ->
+        fprintf fmt "%a = %a" pp_register n pp_expression expr
+    | Iinst_store (addr, value) ->
+        fprintf fmt "%a %a, %a" pp_keyword "store" pp_value addr pp_value value
 
   let pp_label_with_args fmt (label, args) =
     match args with
     | [] -> pp_label fmt label
     | _ -> fprintf fmt "%a(%a)" pp_label label (pp_list pp_value) args
+
+  let pp_label_with_params fmt (label, params) =
+    match params with
+    | [] -> pp_label fmt label
+    | _ ->
+        fprintf fmt "%a(%a)" pp_label label
+          (pp_list (fun fmt reg ->
+               fprintf fmt "%a %a" pp_type (Reg.type_of reg) pp_register reg))
+          params
 
   let pp_terminator fmt term =
     match term with
@@ -251,12 +257,12 @@ module Make (F : Formatter) = struct
           cases
 
   let pp_basic_block fmt bb =
-    fprintf fmt "@[<v2>%a:@," pp_label (Block.label bb);
+    fprintf fmt "@[<v2>%a:@," pp_label_with_params
+      (Block.label bb, Block.params bb);
 
     List.iter
       (fun inst -> fprintf fmt "%a@," pp_instruction inst)
-      bb.b_phi_insts;
-    List.iter (fun inst -> fprintf fmt "%a@," pp_instruction inst) bb.b_insts;
+      bb.block_insts;
 
     fprintf fmt "%a@]@," pp_terminator (Block.term bb)
 
@@ -353,4 +359,4 @@ let dump_module ctx =
   print_globals extern_funcs;
   print_globals ~newlines:true funcs;
 
-  fprintf fmt "@]"
+  fprintf fmt "@]@."

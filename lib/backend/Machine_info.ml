@@ -3,6 +3,10 @@
 
 open Ir_base
 
+type endianess = Little_endian | Big_endian
+
+let system_endianess = Little_endian
+
 (** Cache for the sizes of IR types.
 
     We store the sizes of IR types in this cache to avoid recomputing them. Some

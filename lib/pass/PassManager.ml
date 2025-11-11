@@ -65,18 +65,7 @@ module X86PrologEpilogPass = MrPrologEpilogPass.Make (X86MrBuilder)
 let create arch _optimize =
   {
     pm_arch = arch;
-    (*
-      Some passes below are required for code generation
-      or for other required passes. They are put between
-      REQUIRED markers. DO NOT remove these passes, and be
-      really sure when moving them.
-    *)
-    pm_ir_fn_passes =
-      [
-        (* BEGIN REQUIRED *)
-        LowerPhiPass.pass_fn;
-        (* END REQUIRED *)
-      ];
+    pm_ir_fn_passes = [];
     pm_mir_fn_passes =
       [
         (* BEGIN REQUIRED *)

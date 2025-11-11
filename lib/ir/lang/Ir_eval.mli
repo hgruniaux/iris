@@ -21,3 +21,8 @@ val eval_icmp : icmpop -> value -> value -> value option
 (** Evaluates a comparison operation between two values. If it unable to
     evaluate the operation (error occurred, non constant operands, undefined
     behavior, etc.), it returns [None]. *)
+
+val eval_cast : castop -> typ -> value -> value option
+(** Evaluates a cast operation on a value to a target type. If it unable to
+    evaluate the operation (error occurred, non constant operands, undefined
+    behavior, etc.), it returns [None]. *)

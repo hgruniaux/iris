@@ -1,3 +1,12 @@
+(*
+ * Copyright (c) 2025 Hubert Gruniaux
+ * This file is part of the Iris project.
+ *
+ * This file contains the IR builder. It provides functions to create and
+ * manipulate intermediate representation (IR) code. This API it is the main
+ * entry point for generating IR code for the frontends.
+ *)
+
 open Ir_base
 
 type t

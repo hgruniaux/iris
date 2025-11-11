@@ -57,9 +57,8 @@ let build ctx =
           Ir.LabelMap.iter
             (fun _ bb ->
               List.iter
-                (fun inst ->
-                  match inst.Ir.i_kind with
-                  | Ir.Iinst_call (callee, _) -> (
+                (function
+                  | Ir.Iinst_def (_, Iexpr_call (callee, _)) -> (
                       match callee with
                       | Ir.Ival_global global -> (
                           match global.global_kind with
@@ -72,7 +71,7 @@ let build ctx =
                           failwith
                             "CallGraph.build: Indirect call not supported")
                   | _ -> ())
-                bb.Ir.b_insts)
+                bb.Ir.block_insts)
             caller.Ir.fn_blocks
       | _ -> ())
     ctx.Ir.mod_globals;

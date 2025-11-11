@@ -1,6 +1,11 @@
 (* Copyright (C) 2025 Hubert Gruniaux
  * This file is part of Iris. *)
 
+type endianess = Little_endian | Big_endian
+
+val system_endianess : endianess
+(** The endianess of the target machine. *)
+
 val pointer_integer_type : Ir_base.Type.t
 (** The IR type representing a pointer-sized integer. Generally [Ityp_i32] or
     [Ityp_i64]. *)

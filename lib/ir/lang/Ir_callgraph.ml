@@ -35,8 +35,9 @@ module CallGraph = struct
       (fun bb ->
         BasicBlock.iter_insts
           (fun inst ->
-            match inst.i_kind with
-            | Iinst_call (callee, _) -> _register_call_inst cg f callee
+            match inst with
+            | Iinst_def (_, Iexpr_call (callee, _)) ->
+                _register_call_inst cg f callee
             | _ -> ())
           bb)
       f;
