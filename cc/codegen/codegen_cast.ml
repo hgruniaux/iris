@@ -11,8 +11,10 @@ let constant_zero_for ctx ir_val =
   Ir.Builder.emit_constant_zero ctx.ctx_builder (Ir.Value.type_of ir_val)
 
 let codegen_cast_int2bool ctx int_val =
-  let zero = constant_zero_for ctx int_val in
-  Ir.Builder.emit_icmp ctx.ctx_builder Ir.Icmp_ne int_val zero
+  if Ir.Value.type_of int_val = Ir.Ityp_i1 then int_val
+  else
+    let zero = constant_zero_for ctx int_val in
+    Ir.Builder.emit_icmp ctx.ctx_builder Ir.Icmp_ne int_val zero
 
 let codegen_cast_float2bool ctx float_val =
   ignore ctx;
