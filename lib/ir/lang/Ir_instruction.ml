@@ -95,6 +95,13 @@ let map_values f inst =
   | Iinst_def (name, expr) -> Iinst_def (name, map_expr_values f expr)
   | Iinst_store (addr, value) -> Iinst_store (f addr, f value)
 
+(** Same as [map_values f_val inst] but also applies [f_reg] to the instruction
+    name of [Iinst_def]. *)
+let map_values_and_def f_val f_reg inst =
+  match inst with
+  | Iinst_def (name, expr) -> Iinst_def (f_reg name, map_expr_values f_val expr)
+  | Iinst_store (addr, value) -> Iinst_store (f_val addr, f_val value)
+
 (** Applies [f] to all registers used in [inst], returning a new instruction
     with the transformed registers. *)
 let map_regs f inst =
