@@ -26,17 +26,20 @@ let create fn name kind =
   Hashtbl.add fn.fn_symbol_table name inst;
   inst
 
-(** Returns true if [inst_kind] may have observable side effects. *)
-let may_have_side_effects inst_kind =
-  match inst_kind with
-  | Iexpr_value _ | Iexpr_ibinop _ | Iexpr_iunop _ | Iexpr_icmp _ | Iexpr_cast _
-    ->
-      false
-  | Iexpr_alloca _ -> true
-  | Iexpr_load _ -> false (* Reading from memory has no side effects. *)
-  (* A call to a function may have side effects. However, in some cases, we can
-     prove that the callee function is pure (has no side effets). *)
-  | Iexpr_call _ -> true (* TODO: support pure functions for side effects *)
+(** Returns true if [inst] may have observable side effects. *)
+let may_have_side_effects inst =
+  match inst with
+  | Iinst_def (_, expr) -> (
+      match expr with
+      | Iexpr_value _ -> false
+      | Iexpr_alloca _ -> false
+      | Iexpr_ibinop _ -> false
+      | Iexpr_iunop _ -> false
+      | Iexpr_icmp _ -> false
+      | Iexpr_cast _ -> false
+      | Iexpr_call _ -> true
+      | Iexpr_load _ -> true)
+  | Iinst_store _ -> true
 
 (** Returns the set of values used by the given instruction. *)
 let uses inst =
@@ -73,3 +76,31 @@ let defs_reg inst =
   match inst with
   | Iinst_def (v, _) -> RegSet.singleton v
   | Iinst_store _ -> RegSet.empty
+
+let map_expr_values f expr =
+  match expr with
+  | Iexpr_value v -> Iexpr_value (f v)
+  | Iexpr_alloca _ -> expr
+  | Iexpr_load (typ, addr) -> Iexpr_load (typ, f addr)
+  | Iexpr_ibinop (op, v1, v2) -> Iexpr_ibinop (op, f v1, f v2)
+  | Iexpr_iunop (op, v) -> Iexpr_iunop (op, f v)
+  | Iexpr_icmp (cmp, v1, v2) -> Iexpr_icmp (cmp, f v1, f v2)
+  | Iexpr_cast (cast_kind, typ, v) -> Iexpr_cast (cast_kind, typ, f v)
+  | Iexpr_call (fn, args) -> Iexpr_call (f fn, List.map f args)
+
+(** Applies [f] to all values used in [inst], returning a new instruction with
+    the transformed values. The defined name for [Iinst_def] is not changed. *)
+let map_values f inst =
+  match inst with
+  | Iinst_def (name, expr) -> Iinst_def (name, map_expr_values f expr)
+  | Iinst_store (addr, value) -> Iinst_store (f addr, f value)
+
+(** Applies [f] to all registers used in [inst], returning a new instruction
+    with the transformed registers. *)
+let map_regs f inst =
+  let map_value v = match v with Ival_reg r -> Ival_reg (f r) | _ -> v in
+  match inst with
+  | Iinst_def (name, expr) ->
+      let new_expr = map_expr_values map_value expr in
+      Iinst_def (f name, new_expr)
+  | _ -> map_values map_value inst

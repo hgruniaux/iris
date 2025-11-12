@@ -45,6 +45,9 @@ let iter_blocks (fnc : bb -> unit) (f : fn) : unit =
 let fold_blocks (fnc : bb -> 'a -> 'a) (f : fn) (acc : 'a) : 'a =
   LabelMap.fold (fun _ bb acc -> fnc bb acc) f.fn_blocks acc
 
+let map_blocks (f : bb -> bb) (fn : fn) : bb list =
+  LabelMap.fold (fun _ bb acc -> f bb :: acc) fn.fn_blocks []
+
 let find_block (f : fn) (label : Label.t) : bb = LabelMap.find label f.fn_blocks
 
 let find_block_opt (f : fn) (label : Label.t) : bb option =

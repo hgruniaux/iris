@@ -74,6 +74,31 @@ let map_labels f term =
           default_args,
           List.map (fun (i, label, args) -> (i, f label, args)) cases )
 
+(** Maps the values and labels used by a given terminator instruction. This is
+    equivalent to [map_values f_val (map_labels f_label term)]. *)
+let map_values_and_labels f_val f_label term =
+  match term with
+  | Iterm_unreachable -> term
+  | Iterm_ret None -> term
+  | Iterm_ret (Some value) -> Iterm_ret (Some (f_val value))
+  | Iterm_br (target_label, args) ->
+      Iterm_br (f_label target_label, List.map f_val args)
+  | Iterm_br_if (cond, true_label, true_args, false_label, false_args) ->
+      Iterm_br_if
+        ( f_val cond,
+          f_label true_label,
+          List.map f_val true_args,
+          f_label false_label,
+          List.map f_val false_args )
+  | Iterm_br_table (cond, default_label, default_args, cases) ->
+      Iterm_br_table
+        ( f_val cond,
+          f_label default_label,
+          List.map f_val default_args,
+          List.map
+            (fun (i, label, args) -> (i, f_label label, List.map f_val args))
+            cases )
+
 (** Returns the successors of a given terminator instruction. *)
 let succs = function
   | Iterm_unreachable | Iterm_ret _ -> LabelSet.empty
