@@ -209,9 +209,8 @@ let remove_allocas fn allocas_set =
       | _ -> Some inst)
     entry_block
 
+(** The mem2reg pass implementation. *)
 let mem2reg fn =
-  Format.printf "Running mem2reg on function '%s'\n" fn.fn_name;
-
   (* Step 1: Compute dominator tree and dominance frontier *)
   let idom = Cfg.compute_idom fn in
   let dom_tree = Cfg.Dominator.idom_to_dom_tree fn idom in
