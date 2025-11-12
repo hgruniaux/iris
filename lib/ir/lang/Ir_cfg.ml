@@ -57,7 +57,15 @@ module Cfg = struct
 end
 
 module Dominator = Graph.Dominator.Make (Cfg)
-module Fixpoint = Graph.Fixpoint.Make (Cfg)
+
+module Fixpoint
+    (A :
+      Graph.Fixpoint.Analysis
+        with type g = Cfg.t
+         and type vertex = Cfg.V.t
+         and type edge = Cfg.E.t) =
+  Graph.Fixpoint.Make (Cfg) (A)
+
 module ChaoticIteration = Graph.ChaoticIteration.Make (Cfg)
 module WeakTopological = Graph.WeakTopological.Make (Cfg)
 module Leaderlist = Graph.Leaderlist.Make (Cfg)

@@ -6,9 +6,12 @@
  * It removes unreachable basic blocks and merges those that can.
  *)
 
-val remove_unreachable_blocks : Ir.fn -> unit
-(** Removes all basic blocks that are unreachable on the provided function. It
-    does this by performing a reachability analysis. *)
+val remove_unreachable_blocks : Ir_base.fn -> bool
+(** Remove unreachable basic blocks from the function's control flow graph.
+    Returns [true] if at least one unreachable basic block was removed. *)
 
-val merge_leader_list : Ir.fn -> unit
-val simplify_cfg : Ir.fn -> unit
+val name : string
+(** The pass name, for debugging and identification purposes. *)
+
+val pass_fn : Ir_base.fn -> unit
+(** The function pass implementing the CFG simplification. *)

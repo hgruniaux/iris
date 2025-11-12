@@ -259,39 +259,13 @@ let begin_function b name function_type =
   b.builder_bb <- Some entry_bb;
   (global_fn, fn.fn_params)
 
-let remove_trivially_unreachable_blocks fn =
-  let entry_bb = Option.get fn.fn_entry in
-
-  let should_remove block =
-    let label = Block.label block in
-    (not (Label.equal label entry_bb)) && not (Block.has_preds block)
-  in
-
-  let blocks_to_remove =
-    LabelMap.fold
-      (fun _ bb acc -> if should_remove bb then bb :: acc else acc)
-      fn.fn_blocks []
-  in
-
-  List.iter
-    (fun bb ->
-      LabelMap.iter
-        (fun _ succ_bb ->
-          succ_bb.block_pred <-
-            LabelSet.remove (Block.label bb) succ_bb.block_pred)
-        fn.fn_blocks)
-    blocks_to_remove;
-
-  fn.fn_blocks <-
-    LabelMap.filter (fun _ bb -> not (should_remove bb)) fn.fn_blocks
-
 let end_function b =
   let fn = Option.get b.builder_function in
 
-  (* Remove blocks with no predecessors. This pass do not remove all unreachable blocks,
-     this is done by optimization passes later. We just remove trivially unreachable
-     blocks as the builder tends to create them when inserting some terminator instructions. *)
-  remove_trivially_unreachable_blocks fn;
+  (* The builder tends to introduce many unreachable basic blocks. We try to
+     remove them for simpler to read code and less memory consumption, even
+     when optimizations are disabled. *)
+  Ir_pass_simplcfg.remove_unreachable_blocks fn |> ignore;
 
   b.builder_function <- None;
   b.builder_bb <- None

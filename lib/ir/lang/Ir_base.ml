@@ -75,6 +75,8 @@ module Reg = struct
 
   let type_of t = t.typ
   let first_pseudo_reg = 128
+
+  let name reg = reg.name
   let set_name reg name = reg.name <- Some name
 
   (** Returns true if [x] is a pseudo register; false otherwise. *)
